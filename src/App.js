@@ -2,9 +2,8 @@ import React, { useState, useEffect, createContext, useContext, useCallback, use
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
-// Import Tone.js for sound effects.
-// Corrected import: import the entire Tone object and access components from it.
-import * as Tone from 'tone';
+// Tone.js imports removed as requested to resolve compilation issues.
+// import * as Tone from 'tone'; // Removed
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
@@ -222,94 +221,36 @@ const FirestoreService = {
 
 // --- Game Components ---
 
-// Dice Component: Displays dice values and a roll button with animation and sound integration.
-const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
+// Dice Component: Displays dice values and a roll button with animation.
+const Dice = ({ dice, setDice, rollDice, disabled }) => { // Removed soundEnabled prop
   const [isRolling, setIsRolling] = useState(false);
-  const rollEventSynthRef = useRef(null); // Ref for the main "clattering" sound
-  const impactSynthRef = useRef(null); // Ref for the final "thud" impact
+  // Tone.js sound refs removed.
+  // const rollEventSynthRef = useRef(null);
+  // const impactSynthRef = useRef(null);
 
   useEffect(() => {
-    // Initialize main rolling sound synth
-    if (!rollEventSynthRef.current) {
-        rollEventSynthRef.current = new Tone.NoiseSynth({ // Use Tone.NoiseSynth
-            noise: {
-                type: 'brown' // Brown noise for a lower frequency, rumbling sound
-            },
-            envelope: {
-                attack: 0.005,
-                decay: 0.1,
-                sustain: 0,
-                release: 0.15,
-                releaseCurve: 'linear'
-            },
-            volume: -20 // Start with a lower volume
-        }).toDestination();
-    }
-
-    // Initialize impact sound synth (short, sharp click/thud)
-    if (!impactSynthRef.current) {
-        impactSynthRef.current = new Tone.PluckSynth({ // Use Tone.PluckSynth
-            attackNoise: 1, // High attack noise for a percussive feel
-            dampening: 2000,
-            resonance: 0.7
-        }).toDestination();
-        impactSynthRef.current.volume.value = -10; // Louder for impact
-    }
-
-    // Clean up synths on unmount
+    // Tone.js synth initialization and cleanup removed.
+    // Cleanup function for the effect:
     return () => {
-      if (rollEventSynthRef.current) {
-        rollEventSynthRef.current.dispose();
-        rollEventSynthRef.current = null;
-      }
-      if (impactSynthRef.current) {
-        impactSynthRef.current.dispose();
-        impactSynthRef.current = null;
-      }
+      // if (rollEventSynthRef.current) {
+      //   rollEventSynthRef.current.dispose();
+      //   rollEventSynthRef.current = null;
+      // }
+      // if (impactSynthRef.current) {
+      //   impactSynthRef.current.dispose();
+      //   impactSynthRef.current = null;
+      // }
     };
   }, []);
 
-  // Function to play a more realistic dice roll sound using Tone.js
-  const playDiceRollSound = async (duration = 0.8) => { // Increased duration for more rolling feel
-    if (!soundEnabled) return;
-
-    if (Tone.context.state !== 'running') { // Use Tone.context
-      try {
-        await Tone.start(); // Use Tone.start
-        console.log("Tone.js context started successfully for dice sound.");
-      } catch (error) {
-        console.error("Error starting Tone.js context for dice sound:", error);
-        return;
-      }
-    }
-
-    // Always use Tone.context.currentTime for scheduling to prevent negative time errors.
-    const currentTime = Tone.context.currentTime; // Use Tone.context
-    const end = currentTime + duration;
-
-    // Main rolling sound: bursts of noise
-    rollEventSynthRef.current.triggerAttack(currentTime); // Start noise immediately
-    rollEventSynthRef.current.triggerRelease(end - 0.1); // Release just before end for tail
-
-    // Schedule multiple small, quick impacts during the roll
-    const numHits = 10 + Math.floor(Math.random() * 10); // Randomize number of hits
-    for (let i = 0; i < numHits; i++) {
-        // Schedule within the roll duration, ensuring strictly increasing times
-        const scheduledTime = currentTime + (i / numHits) * (duration - 0.1) + (Math.random() * 0.02); // Small random jitter
-        const freq = 100 + Math.random() * 200; // Vary frequency for each hit
-        impactSynthRef.current.triggerAttackRelease(freq, "32n", scheduledTime, 0.5 + Math.random() * 0.5);
-    }
-
-    // Final impact sound at the very end
-    impactSynthRef.current.triggerAttackRelease("C3", "16n", end - 0.05, 0.8); // Stronger, lower frequency impact
-
-  };
+  // Tone.js sound playing function removed.
+  // const playDiceRollSound = async (duration = 0.8) => { /* ... removed ... */ };
 
   const handleRollDice = async () => {
     if (disabled || isRolling) return;
 
     setIsRolling(true);
-    playDiceRollSound(0.8); // Play the enhanced dice roll sound with a duration
+    // playDiceRollSound(0.8); // Call to sound function removed
 
     // Simulate rolling animation by rapidly changing dice numbers
     let rollCount = 0;
@@ -819,7 +760,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
   // Change possibleMovePoints to store objects with targetPoint and diceUsed
   const [possibleMovesInfo, setPossibleMovesInfo] = useState([]); // Array of { targetPoint, diceUsed[] }
   const [mustReenterFromBar, setMustReenterFromBar] = useState(false); // Flag if player has checkers on the bar
-  const [soundEnabled, setSoundEnabled] = useState(true); // State for toggling dice sound
+  // const [soundEnabled, setSoundEnabled] = useState(true); // Sound enabled state removed
   const [moveHistory, setMoveHistory] = useState([]); // Stores history of individual checker moves
 
   // Define the custom paths for movement as per user's description
@@ -1686,7 +1627,8 @@ const BackgammonGame = ({ onMatchEnd }) => {
                         <option value={13}>Best of 13</option>
                         <option value={15}>Best of 15</option>
                     </select>
-                    <div className="mt-4">
+                    {/* Toggle sound button removed as sound functionality is removed */}
+                    {/* <div className="mt-4">
                         <button
                             onClick={() => setSoundEnabled(prev => !prev)}
                             className={`w-full py-2 px-4 rounded-md font-semibold transition-colors ${
@@ -1695,7 +1637,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
                         >
                             Toggle Dice Sound: {soundEnabled ? 'On' : 'Off'}
                         </button>
-                    </div>
+                    </div> */}
                 </div>
 
                 <div className="p-4 bg-green-50 rounded-lg shadow-inner flex flex-col justify-between col-span-2">
@@ -1727,7 +1669,8 @@ const BackgammonGame = ({ onMatchEnd }) => {
                     />
                 </div>
                 <div className="w-full md:w-1/4 flex flex-col gap-4">
-                    <Dice dice={dice} setDice={setDice} rollDice={rollDiceHandler} disabled={!isPlaying || availableDice.length > 0} soundEnabled={soundEnabled} />
+                    {/* Removed soundEnabled prop from Dice component */}
+                    <Dice dice={dice} setDice={setDice} rollDice={rollDiceHandler} disabled={!isPlaying || availableDice.length > 0} />
                     {isPlaying && (
                         <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg shadow-inner">
                             <h4 className="text-md font-bold text-gray-700">Turn Actions</h4>

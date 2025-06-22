@@ -9,7 +9,7 @@
     "firebase": "^10.12.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "tone": "^14.7.77",
     "web-vitals": "^2.1.4"
   },
@@ -23,7 +23,12 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "globals": {
+      "__firebase_config": "readonly",
+      "__app_id": "readonly",
+      "__initial_auth_token": "readonly"
+    }
   },
   "browserslist": {
     "production": [
