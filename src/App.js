@@ -3,8 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 // Import Tone.js for sound effects.
-// Corrected import: import the entire Tone object and access components from it.
-import * as Tone from 'tone';
+// Corrected import: explicitly import NoiseSynth, PluckSynth, context, and start as named exports.
+import { NoiseSynth, PluckSynth, context, start } from 'tone';
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
@@ -231,7 +231,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   useEffect(() => {
     // Initialize main rolling sound synth
     if (!rollEventSynthRef.current) {
-        rollEventSynthRef.current = new Tone.NoiseSynth({ // Use Tone.NoiseSynth
+        rollEventSynthRef.current = new NoiseSynth({ // Use NoiseSynth directly
             noise: {
                 type: 'brown' // Brown noise for a lower frequency, rumbling sound
             },
@@ -248,7 +248,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
 
     // Initialize impact sound synth (short, sharp click/thud)
     if (!impactSynthRef.current) {
-        impactSynthRef.current = new Tone.PluckSynth({ // Use Tone.PluckSynth
+        impactSynthRef.current = new PluckSynth({ // Use PluckSynth directly
             attackNoise: 1, // High attack noise for a percussive feel
             dampening: 2000,
             resonance: 0.7
@@ -273,9 +273,9 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   const playDiceRollSound = async (duration = 0.8) => { // Increased duration for more rolling feel
     if (!soundEnabled) return;
 
-    if (Tone.context.state !== 'running') { // Use Tone.context
+    if (context.state !== 'running') { // Use context directly
       try {
-        await Tone.start(); // Use Tone.start
+        await start(); // Use start directly
         console.log("Tone.js context started successfully for dice sound.");
       } catch (error) {
         console.error("Error starting Tone.js context for dice sound:", error);
@@ -283,19 +283,19 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
       }
     }
 
-    // Always use Tone.context.currentTime for scheduling to prevent negative time errors.
-    const start = Tone.context.currentTime; // Use Tone.context
-    const end = start + duration;
+    // Always use context.currentTime for scheduling to prevent negative time errors.
+    const currentTime = context.currentTime; // Use context.currentTime
+    const end = currentTime + duration;
 
     // Main rolling sound: bursts of noise
-    rollEventSynthRef.current.triggerAttack(start); // Start noise immediately
+    rollEventSynthRef.current.triggerAttack(currentTime); // Start noise immediately
     rollEventSynthRef.current.triggerRelease(end - 0.1); // Release just before end for tail
 
     // Schedule multiple small, quick impacts during the roll
     const numHits = 10 + Math.floor(Math.random() * 10); // Randomize number of hits
     for (let i = 0; i < numHits; i++) {
         // Schedule within the roll duration, ensuring strictly increasing times
-        const scheduledTime = start + (i / numHits) * (duration - 0.1) + (Math.random() * 0.02); // Small random jitter
+        const scheduledTime = currentTime + (i / numHits) * (duration - 0.1) + (Math.random() * 0.02); // Small random jitter
         const freq = 100 + Math.random() * 200; // Vary frequency for each hit
         impactSynthRef.current.triggerAttackRelease(freq, "32n", scheduledTime, 0.5 + Math.random() * 0.5);
     }
@@ -1402,730 +1402,730 @@ const BackgammonGame = ({ onMatchEnd }) => {
         if (index > -1) {
             newAvailableDice.splice(index, 1);
         } else {
-            console.warn(`Attempted to consume die ${die} but it was not found in available dice:`, newAvailableDice);
-        }
-    });
-    setAvailableDice(newAvailableDice);
-    setPossibleMovesInfo([]); // Clear possible moves info
-
-    // If no more dice are available after this move, or no more moves possible, automatically end the turn.
-    const hasMoreMoves = checkIfAnyPossibleMoves(newBoardState, currentPlayer, newAvailableDice);
-    if (newAvailableDice.length === 0 || !hasMoreMoves) {
-        setTimeout(endTurn, 1000); // Add a small delay for message visibility
-    }
-
-  }, [boardState, availableDice, currentPlayer, endTurn, getOpponentColor, checkIfAnyPossibleMoves, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
-
-  // Handles rolling the dice. This function is passed to the Dice component as a callback.
-  const rollDiceHandler = useCallback((die1, die2) => { // Now accepts die values as arguments
-    if (!isPlaying) return;
-    const newAvailableDice = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2];
-    setAvailableDice(newAvailableDice);
-    setGameMessage(`${currentPlayer === 'white' ? (currentUser?.displayName || 'White Player') : 'Black Player'} rolled a ${die1} and a ${die2}. Now make your move.`);
-    setSelectedPoint(null);
-    setPossibleMovesInfo([]); // Clear possible moves info.
-    setMoveHistory([]); // Clear move history at the start of a new roll/turn
-
-    // Check if any moves are possible with the new dice and current board state
-    const initialPossibleMoves = checkIfAnyPossibleMoves(boardState, currentPlayer, newAvailableDice);
-
-    if (boardState.bar[currentPlayer] > 0 && !initialPossibleMoves) {
-        // If player has pieces on the bar AND cannot re-enter, skip turn.
-        setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} has checkers on the bar and no valid moves. Turn skipped.`);
-        setTimeout(endTurn, 2000); // Give player time to read message
-        return; // Important: exit here to prevent normal turn flow
-    } else if (!initialPossibleMoves) {
-        // Normal case: no moves possible, but no checkers on bar
-        setGameMessage(`No possible moves for ${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} with these dice. Turn ends.`);
-        setTimeout(endTurn, 1500); // Give player a moment to read message
-    }
-  }, [isPlaying, currentPlayer, currentUser, checkIfAnyPossibleMoves, boardState, endTurn, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
-
-
-  // Starts a new backgammon match.
-  const startMatch = () => {
-    setPlayerScore(0);
-    setOpponentScore(0);
-    setGameMessage(`Match started! First to ${Math.ceil(matchFormat / 2)} games wins. White rolls first!`);
-    setIsPlaying(true);
-    setDice([0,0]);
-    setAvailableDice([]);
-    setCurrentPlayer('white');
-    initializeBoard(); // Reset board to initial state.
-    setSelectedPoint(null);
-    setPossibleMovesInfo([]); // Clear possible moves info
-    setMustReenterFromBar(false);
-    setMoveHistory([]); // Clear history at match start
-  };
-
-  // Closes the general info modal.
-  const closeModal = () => {
-    setShowModal(false);
-  };
-
-  const undoLastMove = useCallback(() => {
-    if (moveHistory.length === 0) {
-        setGameMessage("No moves to undo!");
-        return;
-    }
-
-    const lastMove = moveHistory[moveHistory.length - 1];
-    const newMoveHistory = moveHistory.slice(0, -1); // Remove the last move
-    setMoveHistory(newMoveHistory);
-
-    const newBoardState = JSON.parse(JSON.stringify(boardState));
-
-    // Determine if it was a bearing off move
-    const isBearingOffMove = (lastMove.toPoint === 0 || lastMove.toPoint === 25);
-
-    // 1. Move checker back
-    if (isBearingOffMove) {
-        if (lastMove.toPoint === 0) { // White bearing off
-            newBoardState.home.white--;
-        } else { // Black bearing off
-            newBoardState.home.black--;
-        }
-        // Place checker back on its original 'fromPoint'
-        newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor);
-    } else {
-        // Regular move: move checker from 'toPoint' back to 'fromPoint'
-        if (!newBoardState.points[lastMove.toPoint - 1] || newBoardState.points[lastMove.toPoint - 1].checkers.length === 0 ||
-            newBoardState.points[lastMove.toPoint - 1].checkers[newBoardState.points[lastMove.toPoint - 1].checkers.length - 1] !== lastMove.checkerColor) {
-            console.error("Error during undo: No checker of correct color at toPoint to move back.");
-            setGameMessage("Error undoing move. Please restart game if issues persist.");
-            return;
-        }
-        newBoardState.points[lastMove.toPoint - 1].checkers.pop(); // Remove from destination
-        // Handle move from bar
-        if (lastMove.fromPoint === 'bar') {
-            newBoardState.bar[lastMove.checkerColor]++;
-        } else {
-            newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor); // Return to original point
-        }
-    }
-
-    // 2. If a blot was hit, move opponent's checker back from the bar
-    if (lastMove.hitOpponentChecker && lastMove.hitCheckerColor) {
-        newBoardState.bar[lastMove.hitCheckerColor]--;
-        // For a blot, the opponent's checker was sent to the bar FROM `lastMove.toPoint`
-        if (lastMove.toPoint !== 0 && lastMove.toPoint !== 25) { // Ensure it wasn't a bear-off point itself
-            newBoardState.points[lastMove.toPoint - 1].checkers.push(lastMove.hitCheckerColor); // Put opponent's checker back
-        }
-    }
-
-    setBoardState(newBoardState);
-
-    // 3. Refund the dice used in the last move
-    setAvailableDice(prevDice => {
-        let tempDice = [...prevDice];
-        lastMove.usedDice.forEach(die => {
-            tempDice.push(die); // Add each die back
+                console.warn(`Attempted to consume die ${die} but it was not found in available dice:`, newAvailableDice);
+            }
         });
-        return tempDice.sort((a, b) => b - a); // Sort for consistent display (descending)
-    });
+        setAvailableDice(newAvailableDice);
+        setPossibleMovesInfo([]); // Clear possible moves info
 
-
-    // Clear selection and possible moves after undo
-    setSelectedPoint(null);
-    setPossibleMovesInfo([]);
-    setGameMessage(`Last move undone.`);
-
-    // Re-evaluate if re-entry from bar is needed after undo
-    // Important: recalculate based on the *new* board state after undo
-    if (newBoardState.bar[currentPlayer] > 0) {
-        setMustReenterFromBar(true);
-        // The available dice for recalculation should include the refunded dice
-        const updatedAvailableDice = [...availableDice, ...lastMove.usedDice]; // This may not be perfectly accurate if availableDice was already modified for other parts of the turn.
-                                                                                // For true robustness, a full state snapshot per move is ideal.
-                                                                                // For now, this assumes undoing to a point where the only available dice are what's remaining + refunded from this move.
-        const availableEntryMoves = calculatePossibleMoves('bar', updatedAvailableDice, currentPlayer, newBoardState);
-        setPossibleMovesInfo(availableEntryMoves);
-    } else {
-        setMustReenterFromBar(false);
-    }
-
-}, [moveHistory, boardState, availableDice, currentPlayer, getOpponentColor, isPointBlocked, setAvailableDice, setSelectedPoint, setPossibleMovesInfo, setGameMessage, setMustReenterFromBar, calculatePossibleMoves]);
-
-
-  // Effect to initialize the board on component mount or `initializeBoard` change.
-  useEffect(() => {
-    initializeBoard();
-  }, [initializeBoard]);
-
-  // Effect to check for match end conditions.
-  useEffect(() => {
-    if (isPlaying) {
-      // If either player reaches half the match format score (rounded up), the match ends.
-      if (playerScore >= Math.ceil(matchFormat / 2)) {
-        endMatch(true); // Current player won the match.
-      } else if (opponentScore >= Math.ceil(matchFormat / 2)) {
-        endMatch(false); // Opponent won the match.
-      }
-    }
-  }, [playerScore, opponentScore, isPlaying, matchFormat, endMatch]);
-
-
-  // Effect to manage `mustReenterFromBar` state and highlight valid bar entry moves.
-  useEffect(() => {
-    if (isPlaying && boardState.bar[currentPlayer] > 0) {
-      setMustReenterFromBar(true);
-      setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} must re-enter checkers from the bar! Click on an available highlighted point to place your checker.`);
-      if (availableDice.length > 0) {
-          // Calculate possible entry moves based on current dice and board state
-          const availableEntryMoves = calculatePossibleMoves('bar', availableDice, currentPlayer, boardState);
-          setPossibleMovesInfo(availableEntryMoves);
-      }
-    } else {
-      setMustReenterFromBar(false);
-      // Clear highlights if no bar checkers and no checker is currently selected.
-      if(selectedPoint === null && possibleMovesInfo.length > 0) {
-          setPossibleMovesInfo([]);
-      }
-    }
-  }, [boardState.bar, currentPlayer, isPlaying, availableDice, selectedPoint, calculatePossibleMoves, boardState, possibleMovesInfo.length]);
-
-
-  // Effect to update possible moves when selected point, available dice, or player changes.
-  useEffect(() => {
-    if (selectedPoint !== null && availableDice.length > 0) {
-        const moves = calculatePossibleMoves(selectedPoint, availableDice, currentPlayer, boardState);
-        // Only update if the moves array is different to prevent unnecessary renders
-        if (JSON.stringify(moves) !== JSON.stringify(possibleMovesInfo)) {
-            setPossibleMovesInfo(moves);
+        // If no more dice are available after this move, or no more moves possible, automatically end the turn.
+        const hasMoreMoves = checkIfAnyPossibleMoves(newBoardState, currentPlayer, newAvailableDice);
+        if (newAvailableDice.length === 0 || !hasMoreMoves) {
+            setTimeout(endTurn, 1000); // Add a small delay for message visibility
         }
-    } else if (selectedPoint === null && possibleMovesInfo.length > 0 && !mustReenterFromBar) {
-      // Clear possible moves when nothing is selected, unless re-entering from bar
-      setPossibleMovesInfo([]);
-    }
-  }, [selectedPoint, availableDice, currentPlayer, boardState, calculatePossibleMoves, possibleMovesInfo, mustReenterFromBar]);
+
+    }, [boardState, availableDice, currentPlayer, endTurn, getOpponentColor, checkIfAnyPossibleMoves, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
+
+    // Handles rolling the dice. This function is passed to the Dice component as a callback.
+    const rollDiceHandler = useCallback((die1, die2) => { // Now accepts die values as arguments
+        if (!isPlaying) return;
+        const newAvailableDice = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2];
+        setAvailableDice(newAvailableDice);
+        setGameMessage(`${currentPlayer === 'white' ? (currentUser?.displayName || 'White Player') : 'Black Player'} rolled a ${die1} and a ${die2}. Now make your move.`);
+        setSelectedPoint(null);
+        setPossibleMovesInfo([]); // Clear possible moves info.
+        setMoveHistory([]); // Clear move history at the start of a new roll/turn
+
+        // Check if any moves are possible with the new dice and current board state
+        const initialPossibleMoves = checkIfAnyPossibleMoves(boardState, currentPlayer, newAvailableDice);
+
+        if (boardState.bar[currentPlayer] > 0 && !initialPossibleMoves) {
+            // If player has pieces on the bar AND cannot re-enter, skip turn.
+            setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} has checkers on the bar and no valid moves. Turn skipped.`);
+            setTimeout(endTurn, 2000); // Give player time to read message
+            return; // Important: exit here to prevent normal turn flow
+        } else if (!initialPossibleMoves) {
+            // Normal case: no moves possible, but no checkers on bar
+            setGameMessage(`No possible moves for ${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} with these dice. Turn ends.`);
+            setTimeout(endTurn, 1500); // Give player a moment to read message
+        }
+    }, [isPlaying, currentPlayer, currentUser, checkIfAnyPossibleMoves, boardState, endTurn, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
 
 
-  // Handles a click on a board point.
-  const handlePointClick = (pointNumber) => {
-    if (!isPlaying || availableDice.length === 0) {
-      setGameMessage("Please roll the dice and ensure moves are available!");
-      return;
-    }
-
-    // If the clicked point is already selected, deselect it.
-    if (selectedPoint === pointNumber) {
+    // Starts a new backgammon match.
+    const startMatch = () => {
+        setPlayerScore(0);
+        setOpponentScore(0);
+        setGameMessage(`Match started! First to ${Math.ceil(matchFormat / 2)} games wins. White rolls first!`);
+        setIsPlaying(true);
+        setDice([0,0]);
+        setAvailableDice([]);
+        setCurrentPlayer('white');
+        initializeBoard(); // Reset board to initial state.
         setSelectedPoint(null);
         setPossibleMovesInfo([]); // Clear possible moves info
-        setGameMessage("Checker deselected.");
-        return;
-    }
-
-    // Handle clicks on bear-off areas as target points
-    const isClickOnBearOffArea = (pointNumber === 0 || pointNumber === 25);
-    const targetMoveInfo = possibleMovesInfo.find(move => move.targetPoint === pointNumber);
-
-    if (mustReenterFromBar) {
-        // If checkers are on the bar, the only allowed action is to re-enter them.
-        if (isClickOnBearOffArea) { // Cannot bear off from bar
-            setGameMessage("You must re-enter checkers from the bar first.");
-            return;
-        }
-        if (targetMoveInfo) {
-            performMove('bar', pointNumber, targetMoveInfo.diceUsed);
-        } else {
-            setGameMessage("You must re-enter checkers from the bar. Please click one of the highlighted points.");
-        }
-        return;
-    }
-
-    // If a checker is already selected, try to move it to the clicked point (including bear-off areas).
-    if (selectedPoint !== null && targetMoveInfo) {
-        performMove(selectedPoint, pointNumber, targetMoveInfo.diceUsed); // Pass the exact dice used
-    } else {
-        // No checker selected, or clicked an invalid target. Try to select a checker.
-        if (isClickOnBearOffArea) { // Cannot select a checker from a bear-off area
-            setGameMessage("You cannot select checkers from the bear-off area.");
-            setSelectedPoint(null);
-            setPossibleMovesInfo([]);
-            return;
-        }
-
-        const pointCheckers = boardState.points[pointNumber - 1].checkers;
-        if (pointCheckers.length > 0 && pointCheckers[0] === currentPlayer) {
-          setSelectedPoint(pointNumber);
-          // When a checker is selected, calculate and store its possible moves including the dice used.
-          const calculatedMoves = calculatePossibleMoves(pointNumber, availableDice, currentPlayer, boardState);
-          setPossibleMovesInfo(calculatedMoves);
-          setGameMessage(`Selected checker from point ${pointNumber}. Now choose a destination.`);
-        } else {
-          setGameMessage("You don't have checkers on this point or it's not your turn. Please select your own checker.");
-          setSelectedPoint(null); // Ensure no point is selected if invalid click.
-          setPossibleMovesInfo([]); // Clear possible moves info
-        }
-      }
+        setMustReenterFromBar(false);
+        setMoveHistory([]); // Clear history at match start
     };
 
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-5xl mx-auto my-8">
-      <h2 className="text-3xl font-extrabold text-blue-800 mb-6 text-center">Play Backgammon</h2>
-      <p className="text-lg text-gray-700 mb-4 text-center">
-        Current User: <span className="font-semibold text-blue-600">{currentUser?.displayName || 'Guest'}</span> (ID: <span className="font-mono text-xs break-words">{userId || 'N/A'}</span>)
-      </p>
+    // Closes the general info modal.
+    const closeModal = () => {
+        setShowModal(false);
+    };
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="p-4 bg-blue-50 rounded-lg shadow-inner col-span-1">
-          <h3 className="text-xl font-bold text-blue-700 mb-3">Match Settings</h3>
-          <label htmlFor="match-format" className="block text-gray-700 font-medium mb-2">
-            Match Format (Best of N games):
-          </label>
-          <select
-            id="match-format"
-            className="w-full p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={matchFormat}
-            onChange={(e) => setMatchFormat(parseInt(e.target.value))}
-            disabled={isPlaying}
-          >
-            <option value={7}>Best of 7</option>
-            <option value={9}>Best of 9</option>
-            <option value={11}>Best of 11</option>
-            <option value={13}>Best of 13</option>
-            <option value={15}>Best of 15</option>
-          </select>
-            <div className="mt-4">
-                <button
-                    onClick={() => setSoundEnabled(prev => !prev)}
-                    className={`w-full py-2 px-4 rounded-md font-semibold transition-colors ${
-                        soundEnabled ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                    }`}
-                >
-                    Toggle Dice Sound: {soundEnabled ? 'On' : 'Off'}
-                </button>
-            </div>
-        </div>
+    const undoLastMove = useCallback(() => {
+        if (moveHistory.length === 0) {
+            setGameMessage("No moves to undo!");
+            return;
+        }
 
-        <div className="p-4 bg-green-50 rounded-lg shadow-inner flex flex-col justify-between col-span-2">
-          <div>
-            <h3 className="text-xl font-bold text-green-700 mb-3">Game Status</h3>
-            <p className="text-gray-700 font-medium text-lg">{gameMessage}</p>
-          </div>
-          <div className="mt-4 text-center">
-            <p className="text-2xl font-bold text-gray-800">
-              Score: {playerScore} - {opponentScore}
+        const lastMove = moveHistory[moveHistory.length - 1];
+        const newMoveHistory = moveHistory.slice(0, -1); // Remove the last move
+        setMoveHistory(newMoveHistory);
+
+        const newBoardState = JSON.parse(JSON.stringify(boardState));
+
+        // Determine if it was a bearing off move
+        const isBearingOffMove = (lastMove.toPoint === 0 || lastMove.toPoint === 25);
+
+        // 1. Move checker back
+        if (isBearingOffMove) {
+            if (lastMove.toPoint === 0) { // White bearing off
+                newBoardState.home.white--;
+            } else { // Black bearing off
+                newBoardState.home.black--;
+            }
+            // Place checker back on its original 'fromPoint'
+            newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor);
+        } else {
+            // Regular move: move checker from 'toPoint' back to 'fromPoint'
+            if (!newBoardState.points[lastMove.toPoint - 1] || newBoardState.points[lastMove.toPoint - 1].checkers.length === 0 ||
+                newBoardState.points[lastMove.toPoint - 1].checkers[newBoardState.points[lastMove.toPoint - 1].checkers.length - 1] !== lastMove.checkerColor) {
+                console.error("Error during undo: No checker of correct color at toPoint to move back.");
+                setGameMessage("Error undoing move. Please restart game if issues persist.");
+                return;
+            }
+            newBoardState.points[lastMove.toPoint - 1].checkers.pop(); // Remove from destination
+            // Handle move from bar
+            if (lastMove.fromPoint === 'bar') {
+                newBoardState.bar[lastMove.checkerColor]++;
+            } else {
+                newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor); // Return to original point
+            }
+        }
+
+        // 2. If a blot was hit, move opponent's checker back from the bar
+        if (lastMove.hitOpponentChecker && lastMove.hitCheckerColor) {
+            newBoardState.bar[lastMove.hitCheckerColor]--;
+            // For a blot, the opponent's checker was sent to the bar FROM `lastMove.toPoint`
+            if (lastMove.toPoint !== 0 && lastMove.toPoint !== 25) { // Ensure it wasn't a bear-off point itself
+                newBoardState.points[lastMove.toPoint - 1].checkers.push(lastMove.hitCheckerColor); // Put opponent's checker back
+            }
+        }
+
+        setBoardState(newBoardState);
+
+        // 3. Refund the dice used in the last move
+        setAvailableDice(prevDice => {
+            let tempDice = [...prevDice];
+            lastMove.usedDice.forEach(die => {
+                tempDice.push(die); // Add each die back
+            });
+            return tempDice.sort((a, b) => b - a); // Sort for consistent display (descending)
+        });
+
+
+        // Clear selection and possible moves after undo
+        setSelectedPoint(null);
+        setPossibleMovesInfo([]);
+        setGameMessage(`Last move undone.`);
+
+        // Re-evaluate if re-entry from bar is needed after undo
+        // Important: recalculate based on the *new* board state after undo
+        if (newBoardState.bar[currentPlayer] > 0) {
+            setMustReenterFromBar(true);
+            // The available dice for recalculation should include the refunded dice
+            const updatedAvailableDice = [...availableDice, ...lastMove.usedDice]; // This may not be perfectly accurate if availableDice was already modified for other parts of the turn.
+            // For true robustness, a full state snapshot per move is ideal.
+            // For now, this assumes undoing to a point where the only available dice are what's remaining + refunded from this move.
+            const availableEntryMoves = calculatePossibleMoves('bar', updatedAvailableDice, currentPlayer, newBoardState);
+            setPossibleMovesInfo(availableEntryMoves);
+        } else {
+            setMustReenterFromBar(false);
+        }
+
+    }, [moveHistory, boardState, availableDice, currentPlayer, getOpponentColor, isPointBlocked, setAvailableDice, setSelectedPoint, setPossibleMovesInfo, setGameMessage, setMustReenterFromBar, calculatePossibleMoves]);
+
+
+    // Effect to initialize the board on component mount or `initializeBoard` change.
+    useEffect(() => {
+        initializeBoard();
+    }, [initializeBoard]);
+
+    // Effect to check for match end conditions.
+    useEffect(() => {
+        if (isPlaying) {
+            // If either player reaches half the match format score (rounded up), the match ends.
+            if (playerScore >= Math.ceil(matchFormat / 2)) {
+                endMatch(true); // Current player won the match.
+            } else if (opponentScore >= Math.ceil(matchFormat / 2)) {
+                endMatch(false); // Opponent won the match.
+            }
+        }
+    }, [playerScore, opponentScore, isPlaying, matchFormat, endMatch]);
+
+
+    // Effect to manage `mustReenterFromBar` state and highlight valid bar entry moves.
+    useEffect(() => {
+        if (isPlaying && boardState.bar[currentPlayer] > 0) {
+            setMustReenterFromBar(true);
+            setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} must re-enter checkers from the bar! Click on an available highlighted point to place your checker.`);
+            if (availableDice.length > 0) {
+                // Calculate possible entry moves based on current dice and board state
+                const availableEntryMoves = calculatePossibleMoves('bar', availableDice, currentPlayer, boardState);
+                setPossibleMovesInfo(availableEntryMoves);
+            }
+        } else {
+            setMustReenterFromBar(false);
+            // Clear highlights if no bar checkers and no checker is currently selected.
+            if(selectedPoint === null && possibleMovesInfo.length > 0) {
+                setPossibleMovesInfo([]);
+            }
+        }
+    }, [boardState.bar, currentPlayer, isPlaying, availableDice, selectedPoint, calculatePossibleMoves, boardState, possibleMovesInfo.length]);
+
+
+    // Effect to update possible moves when selected point, available dice, or player changes.
+    useEffect(() => {
+        if (selectedPoint !== null && availableDice.length > 0) {
+            const moves = calculatePossibleMoves(selectedPoint, availableDice, currentPlayer, boardState);
+            // Only update if the moves array is different to prevent unnecessary renders
+            if (JSON.stringify(moves) !== JSON.stringify(possibleMovesInfo)) {
+                setPossibleMovesInfo(moves);
+            }
+        } else if (selectedPoint === null && possibleMovesInfo.length > 0 && !mustReenterFromBar) {
+            // Clear possible moves when nothing is selected, unless re-entering from bar
+            setPossibleMovesInfo([]);
+        }
+    }, [selectedPoint, availableDice, currentPlayer, boardState, calculatePossibleMoves, possibleMovesInfo, mustReenterFromBar]);
+
+
+    // Handles a click on a board point.
+    const handlePointClick = (pointNumber) => {
+        if (!isPlaying || availableDice.length === 0) {
+            setGameMessage("Please roll the dice and ensure moves are available!");
+            return;
+        }
+
+        // If the clicked point is already selected, deselect it.
+        if (selectedPoint === pointNumber) {
+            setSelectedPoint(null);
+            setPossibleMovesInfo([]); // Clear possible moves info
+            setGameMessage("Checker deselected.");
+            return;
+        }
+
+        // Handle clicks on bear-off areas as target points
+        const isClickOnBearOffArea = (pointNumber === 0 || pointNumber === 25);
+        const targetMoveInfo = possibleMovesInfo.find(move => move.targetPoint === pointNumber);
+
+        if (mustReenterFromBar) {
+            // If checkers are on the bar, the only allowed action is to re-enter them.
+            if (isClickOnBearOffArea) { // Cannot bear off from bar
+                setGameMessage("You must re-enter checkers from the bar first.");
+                return;
+            }
+            if (targetMoveInfo) {
+                performMove('bar', pointNumber, targetMoveInfo.diceUsed);
+            } else {
+                setGameMessage("You must re-enter checkers from the bar. Please click one of the highlighted points.");
+            }
+            return;
+        }
+
+        // If a checker is already selected, try to move it to the clicked point (including bear-off areas).
+        if (selectedPoint !== null && targetMoveInfo) {
+            performMove(selectedPoint, pointNumber, targetMoveInfo.diceUsed); // Pass the exact dice used
+        } else {
+            // No checker selected, or clicked an invalid target. Try to select a checker.
+            if (isClickOnBearOffArea) { // Cannot select a checker from a bear-off area
+                setGameMessage("You cannot select checkers from the bear-off area.");
+                setSelectedPoint(null);
+                setPossibleMovesInfo([]);
+                return;
+            }
+
+            const pointCheckers = boardState.points[pointNumber - 1].checkers;
+            if (pointCheckers.length > 0 && pointCheckers[0] === currentPlayer) {
+                setSelectedPoint(pointNumber);
+                // When a checker is selected, calculate and store its possible moves including the dice used.
+                const calculatedMoves = calculatePossibleMoves(pointNumber, availableDice, currentPlayer, boardState);
+                setPossibleMovesInfo(calculatedMoves);
+                setGameMessage(`Selected checker from point ${pointNumber}. Now choose a destination.`);
+            } else {
+                setGameMessage("You don't have checkers on this point or it's not your turn. Please select your own checker.");
+                setSelectedPoint(null); // Ensure no point is selected if invalid click.
+                setPossibleMovesInfo([]); // Clear possible moves info
+            }
+        }
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-2xl max-w-5xl mx-auto my-8">
+            <h2 className="text-3xl font-extrabold text-blue-800 mb-6 text-center">Play Backgammon</h2>
+            <p className="text-lg text-gray-700 mb-4 text-center">
+                Current User: <span className="font-semibold text-blue-600">{currentUser?.displayName || 'Guest'}</span> (ID: <span className="font-mono text-xs break-words">{userId || 'N/A'}</span>)
             </p>
-            {isPlaying && availableDice.length > 0 && (
-                <p className="text-md text-gray-600 mt-1">Remaining Dice: {availableDice.join(', ')}</p>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* Backgammon Board & Dice Area */}
-      <div className="flex flex-col md:flex-row gap-6 items-start">
-        <div className="w-full md:w-3/4">
-          <BackgammonBoard
-            board={boardState}
-            currentPlayer={currentPlayer}
-            onPointClick={handlePointClick}
-            selectedPoint={selectedPoint}
-            possibleMovePoints={possibleMovesInfo.map(m => m.targetPoint)} // Pass only the points for highlighting
-            currentDiceValues={dice}
-          />
-        </div>
-        <div className="w-full md:w-1/4 flex flex-col gap-4">
-          <Dice dice={dice} setDice={setDice} rollDice={rollDiceHandler} disabled={!isPlaying || availableDice.length > 0} soundEnabled={soundEnabled} />
-          {isPlaying && (
-            <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg shadow-inner">
-                <h4 className="text-md font-bold text-gray-700">Turn Actions</h4>
-                <button
-                    onClick={undoLastMove}
-                    disabled={moveHistory.length === 0 || !isPlaying}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Undo Last Move
-                </button>
-                {/* Manual win/lose buttons for simulating a *game outcome* within the match, useful for testing match score. */}
-                <button
-                    onClick={() => {
-                        setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
-                            const newBoardState = JSON.parse(JSON.stringify(boardState));
-                            newBoardState.home.white = 15; // Force White to win.
-                            setBoardState(newBoardState);
-                            endTurn(); // Trigger win logic and next game/match end.
-                            setShowConfirmModal(false); // Close the confirmation modal.
-                        });
-                        setShowConfirmModal(true); // Show the confirmation modal.
-                        setModalMessage("Are you sure you want to simulate White winning this game?"); // Set confirmation message.
-                    }}
-                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
-                >
-                    Simulate White Win Game
-                </button>
-                <button
-                    onClick={() => {
-                        setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
-                            const newBoardState = JSON.parse(JSON.stringify(boardState));
-                            newBoardState.home.black = 15; // Force Black to win.
-                            setBoardState(newBoardState);
-                            endTurn(); // Trigger win logic and next game/match end.
-                            setShowConfirmModal(false); // Close the confirmation modal.
-                        });
-                        setShowConfirmModal(true); // Show the confirmation modal.
-                        setModalMessage("Are you sure you want to simulate Black winning this game?"); // Set confirmation message.
-                    }}
-                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
-                >
-                    Simulate Black Win Game
-                </button>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="p-4 bg-blue-50 rounded-lg shadow-inner col-span-1">
+                    <h3 className="text-xl font-bold text-blue-700 mb-3">Match Settings</h3>
+                    <label htmlFor="match-format" className="block text-gray-700 font-medium mb-2">
+                        Match Format (Best of N games):
+                    </label>
+                    <select
+                        id="match-format"
+                        className="w-full p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        value={matchFormat}
+                        onChange={(e) => setMatchFormat(parseInt(e.target.value))}
+                        disabled={isPlaying}
+                    >
+                        <option value={7}>Best of 7</option>
+                        <option value={9}>Best of 9</option>
+                        <option value={11}>Best of 11</option>
+                        <option value={13}>Best of 13</option>
+                        <option value={15}>Best of 15</option>
+                    </select>
+                    <div className="mt-4">
+                        <button
+                            onClick={() => setSoundEnabled(prev => !prev)}
+                            className={`w-full py-2 px-4 rounded-md font-semibold transition-colors ${
+                                soundEnabled ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                            }`}
+                        >
+                            Toggle Dice Sound: {soundEnabled ? 'On' : 'Off'}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-green-50 rounded-lg shadow-inner flex flex-col justify-between col-span-2">
+                    <div>
+                        <h3 className="text-xl font-bold text-green-700 mb-3">Game Status</h3>
+                        <p className="text-gray-700 font-medium text-lg">{gameMessage}</p>
+                    </div>
+                    <div className="mt-4 text-center">
+                        <p className="text-2xl font-bold text-gray-800">
+                            Score: {playerScore} - {opponentScore}
+                        </p>
+                        {isPlaying && availableDice.length > 0 && (
+                            <p className="text-md text-gray-600 mt-1">Remaining Dice: {availableDice.join(', ')}</p>
+                        )}
+                    </div>
+                </div>
             </div>
-          )}
+
+            {/* Backgammon Board & Dice Area */}
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+                <div className="w-full md:w-3/4">
+                    <BackgammonBoard
+                        board={boardState}
+                        currentPlayer={currentPlayer}
+                        onPointClick={handlePointClick}
+                        selectedPoint={selectedPoint}
+                        possibleMovePoints={possibleMovesInfo.map(m => m.targetPoint)} // Pass only the points for highlighting
+                        currentDiceValues={dice}
+                    />
+                </div>
+                <div className="w-full md:w-1/4 flex flex-col gap-4">
+                    <Dice dice={dice} setDice={setDice} rollDice={rollDiceHandler} disabled={!isPlaying || availableDice.length > 0} soundEnabled={soundEnabled} />
+                    {isPlaying && (
+                        <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg shadow-inner">
+                            <h4 className="text-md font-bold text-gray-700">Turn Actions</h4>
+                            <button
+                                onClick={undoLastMove}
+                                disabled={moveHistory.length === 0 || !isPlaying}
+                                className="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Undo Last Move
+                            </button>
+                            {/* Manual win/lose buttons for simulating a *game outcome* within the match, useful for testing match score. */}
+                            <button
+                                onClick={() => {
+                                    setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
+                                        const newBoardState = JSON.parse(JSON.stringify(boardState));
+                                        newBoardState.home.white = 15; // Force White to win.
+                                        setBoardState(newBoardState);
+                                        endTurn(); // Trigger win logic and next game/match end.
+                                        setShowConfirmModal(false); // Close the confirmation modal.
+                                    });
+                                    setShowConfirmModal(true); // Show the confirmation modal.
+                                    setModalMessage("Are you sure you want to simulate White winning this game?"); // Set confirmation message.
+                                }}
+                                className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
+                            >
+                                Simulate White Win Game
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
+                                        const newBoardState = JSON.parse(JSON.stringify(boardState));
+                                        newBoardState.home.black = 15; // Force Black to win.
+                                        setBoardState(newBoardState);
+                                        endTurn(); // Trigger win logic and next game/match end.
+                                        setShowConfirmModal(false); // Close the confirmation modal.
+                                    });
+                                    setShowConfirmModal(true); // Show the confirmation modal.
+                                    setModalMessage("Are you sure you want to simulate Black winning this game?"); // Set confirmation message.
+                                }}
+                                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
+                            >
+                                Simulate Black Win Game
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-4 mt-8">
+                {!isPlaying ? (
+                    <button
+                        onClick={startMatch}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-300"
+                    >
+                        Start New Match
+                    </button>
+                ) : null}
+            </div>
+
+            {/* Modal for match end notifications */}
+            {showModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg p-8 shadow-2xl text-center max-w-sm w-full border-t-8 border-blue-600">
+                        <h3 className="text-2xl font-bold text-gray-800 mb-4">Match Finished!</h3>
+                        <p className="text-lg text-gray-700 mb-6">{modalMessage}</p>
+                        <button
+                            onClick={closeModal}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full shadow-md transition-all duration-300 transform hover:scale-105"
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmModal && (
+                <ConfirmModal
+                    message={modalMessage} // Reusing modalMessage for confirmation message.
+                    onConfirm={confirmModalAction} // Execute the stored action on confirm.
+                    onCancel={() => setShowConfirmModal(false)} // Just close on cancel.
+                />
+            )}
         </div>
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-4 mt-8">
-        {!isPlaying ? (
-          <button
-            onClick={startMatch}
-            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-purple-300"
-          >
-            Start New Match
-          </button>
-        ) : null}
-      </div>
-
-      {/* Modal for match end notifications */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-8 shadow-2xl text-center max-w-sm w-full border-t-8 border-blue-600">
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">Match Finished!</h3>
-            <p className="text-lg text-gray-700 mb-6">{modalMessage}</p>
-            <button
-              onClick={closeModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full shadow-md transition-all duration-300 transform hover:scale-105"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Custom Confirmation Modal */}
-      {showConfirmModal && (
-          <ConfirmModal
-              message={modalMessage} // Reusing modalMessage for confirmation message.
-              onConfirm={confirmModalAction} // Execute the stored action on confirm.
-              onCancel={() => setShowConfirmModal(false)} // Just close on cancel.
-          />
-      )}
-    </div>
-  );
+    );
 };
 
 // --- Other Shared Components ---
 
 // Header Component: Navigation and user info display.
 const Header = ({ onNavigate }) => {
-  const { currentUser, logout } = useContext(AuthContext);
+    const { currentUser, logout } = useContext(AuthContext);
 
-  return (
-    <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-lg rounded-b-lg mb-6">
-      <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center">
-        <h1 className="text-3xl font-extrabold text-yellow-300 tracking-wide mb-3 sm:mb-0">
-          Backgammon Royale
-        </h1>
-        <nav className="flex flex-wrap justify-center sm:justify-end gap-3 sm:gap-4">
-          <button
-            onClick={() => onNavigate('game')}
-            className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-blue-900 font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center gap-2"
-          >
-            {/* Using text for icons as lucide-react is not available in this environment */}
-            Game
-          </button>
-          <button
-            onClick={() => onNavigate('stats')}
-            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center gap-2"
-          >
-            Rankings
-          </button>
-          {currentUser && !currentUser.isAnonymous && (
-            <div className="flex items-center gap-2 bg-blue-500 px-4 py-2 rounded-lg shadow-md">
-              <img
-                src={currentUser.photoURL || 'https://placehold.co/24x24/cccccc/000000?text=U'}
-                alt="User Avatar"
-                className="w-6 h-6 rounded-full border border-yellow-300"
-              />
-              <span className="font-medium text-sm hidden md:block">{currentUser.displayName || 'Guest'}</span>
-              <button
-                onClick={logout}
-                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg shadow-inner transition-colors"
-              >
-                Logout
-              </button>
+    return (
+        <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-lg rounded-b-lg mb-6">
+            <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center">
+                <h1 className="text-3xl font-extrabold text-yellow-300 tracking-wide mb-3 sm:mb-0">
+                    Backgammon Royale
+                </h1>
+                <nav className="flex flex-wrap justify-center sm:justify-end gap-3 sm:gap-4">
+                    <button
+                        onClick={() => onNavigate('game')}
+                        className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-blue-900 font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center gap-2"
+                    >
+                        {/* Using text for icons as lucide-react is not available in this environment */}
+                        Game
+                    </button>
+                    <button
+                        onClick={() => onNavigate('stats')}
+                        className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center gap-2"
+                    >
+                        Rankings
+                    </button>
+                    {currentUser && !currentUser.isAnonymous && (
+                        <div className="flex items-center gap-2 bg-blue-500 px-4 py-2 rounded-lg shadow-md">
+                            <img
+                                src={currentUser.photoURL || 'https://placehold.co/24x24/cccccc/000000?text=U'}
+                                alt="User Avatar"
+                                className="w-6 h-6 rounded-full border border-yellow-300"
+                            />
+                            <span className="font-medium text-sm hidden md:block">{currentUser.displayName || 'Guest'}</span>
+                            <button
+                                onClick={logout}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg shadow-inner transition-colors"
+                            >
+                                Logout
+                            </button>
+                        </div>
+                    )}
+                </nav>
             </div>
-          )}
-        </nav>
-      </div>
-    </header>
-  );
+        </header>
+    );
 };
 
 // LoginPage Component: Handles user authentication.
 const LoginPage = () => {
-  const { signInWithGoogle, loadingAuth } = useContext(AuthContext);
+    const { signInWithGoogle, loadingAuth } = useContext(AuthContext);
 
-  if (loadingAuth) {
+    if (loadingAuth) {
+        return (
+            <div className="flex justify-center items-center h-screen bg-gray-100">
+                <div className="text-xl font-semibold text-gray-700">Loading authentication...</div>
+            </div>
+        );
+    }
+
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <div className="text-xl font-semibold text-gray-700">Loading authentication...</div>
-      </div>
+        <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 flex items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full text-center border-t-4 border-blue-500">
+                <h2 className="text-3xl font-extrabold text-gray-800 mb-6">Welcome to Backgammon Royale</h2>
+                <p className="text-lg text-gray-600 mb-8">
+                    Sign in to play games, track your stats, and see how you rank against other players!
+                </p>
+                <button
+                    onClick={signInWithGoogle}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center mx-auto"
+                >
+                    {/* Using inline SVG for Google icon as a fallback */}
+                    <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.675 12.001c0-.78-.068-1.536-.182-2.272H12v4.265h6.398c-.282 1.39-1.048 2.583-2.227 3.376v2.774h3.565c2.08-1.922 3.284-4.743 3.284-8.143z" fill="#4285F4"/>
+                        <path d="M12 23c3.228 0 5.922-1.066 7.896-2.883l-3.565-2.774c-.98.667-2.245 1.054-3.561 1.054-2.766 0-5.1-1.868-5.952-4.382H2.42v2.851C4.305 20.258 7.964 23 12 23z" fill="#34A853"/>
+                        <path d="M5.952 14.265c-.25-1.05-.39-2.16-.39-3.265s.14-2.215.39-3.265V4.881H2.42C.876 7.234 0 9.567 0 12s.876 4.766 2.42 7.119L5.952 14.265z" fill="#FBBC05"/>
+                        <path d="M12 4.615c1.761 0 3.35.602 4.606 1.795l3.16-3.16c-1.85-1.74-4.26-2.83-7.766-2.83C7.964 0 4.305 2.742 2.42 7.119l3.532 2.774C6.9 6.483 9.234 4.615 12 4.615z" fill="#EA4335"/>
+                    </svg>
+                    Sign in with Google
+                </button>
+                <p className="text-sm text-gray-500 mt-6">
+                    Your current user ID is: <span className="font-mono text-gray-700 break-words">{auth?.currentUser?.uid || 'Not signed in'}</span>
+                </p>
+                <p className="mt-4 text-xs text-gray-500">
+                    By signing in, you agree to our terms of service and privacy policy.
+                </p>
+            </div>
+        </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-300 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-xl shadow-2xl max-w-md w-full text-center border-t-4 border-blue-500">
-        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">Welcome to Backgammon Royale</h2>
-        <p className="text-lg text-gray-600 mb-8">
-          Sign in to play games, track your stats, and see how you rank against other players!
-        </p>
-        <button
-          onClick={signInWithGoogle}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center mx-auto"
-        >
-          {/* Using inline SVG for Google icon as a fallback */}
-          <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M22.675 12.001c0-.78-.068-1.536-.182-2.272H12v4.265h6.398c-.282 1.39-1.048 2.583-2.227 3.376v2.774h3.565c2.08-1.922 3.284-4.743 3.284-8.143z" fill="#4285F4"/>
-            <path d="M12 23c3.228 0 5.922-1.066 7.896-2.883l-3.565-2.774c-.98.667-2.245 1.054-3.561 1.054-2.766 0-5.1-1.868-5.952-4.382H2.42v2.851C4.305 20.258 7.964 23 12 23z" fill="#34A853"/>
-            <path d="M5.952 14.265c-.25-1.05-.39-2.16-.39-3.265s.14-2.215.39-3.265V4.881H2.42C.876 7.234 0 9.567 0 12s.876 4.766 2.42 7.119L5.952 14.265z" fill="#FBBC05"/>
-            <path d="M12 4.615c1.761 0 3.35.602 4.606 1.795l3.16-3.16c-1.85-1.74-4.26-2.83-7.766-2.83C7.964 0 4.305 2.742 2.42 7.119l3.532 2.774C6.9 6.483 9.234 4.615 12 4.615z" fill="#EA4335"/>
-          </svg>
-          Sign in with Google
-        </button>
-        <p className="text-sm text-gray-500 mt-6">
-          Your current user ID is: <span className="font-mono text-gray-700 break-words">{auth?.currentUser?.uid || 'Not signed in'}</span>
-        </p>
-        <p className="mt-4 text-xs text-gray-500">
-          By signing in, you agree to our terms of service and privacy policy.
-        </p>
-      </div>
-    </div>
-  );
 };
 
 // StatsPage Component: Displays player rankings and statistics.
 const StatsPage = () => {
-  const { currentUser, userId, loadingAuth } = useContext(AuthContext);
-  const [users, setUsers] = useState([]);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [sortBy, setSortBy] = useState('winLossRatio'); // Criteria for sorting.
-  const [sortOrder, setSortOrder] = useState('desc');   // Sorting order.
-  const [filterType, setFilterType] = useState('all'); // Filter for 'all' or 'mine' stats.
+    const { currentUser, userId, loadingAuth } = useContext(AuthContext);
+    const [users, setUsers] = useState([]);
+    const [loadingStats, setLoadingStats] = useState(true);
+    const [sortBy, setSortBy] = useState('winLossRatio'); // Criteria for sorting.
+    const [sortOrder, setSortOrder] = useState('desc');   // Sorting order.
+    const [filterType, setFilterType] = useState('all'); // Filter for 'all' or 'mine' stats.
 
-  useEffect(() => {
-    // Only proceed if Firestore is initialized and authentication is loaded.
-    if (!db || loadingAuth) {
-      if (!db) console.warn("StatsPage: db is not initialized.");
-      if (loadingAuth) console.log("StatsPage: Auth is still loading.");
-      return;
+    useEffect(() => {
+        // Only proceed if Firestore is initialized and authentication is loaded.
+        if (!db || loadingAuth) {
+            if (!db) console.warn("StatsPage: db is not initialized.");
+            if (loadingAuth) console.log("StatsPage: Auth is still loading.");
+            return;
+        }
+
+        setLoadingStats(true);
+        console.log("StatsPage: Attempting to fetch users from Firestore...");
+        // Fetch users in real-time.
+        const unsubscribe = FirestoreService.getUsers((fetchedUsers) => {
+            console.log("StatsPage: Fetched users:", fetchedUsers);
+            // Process fetched users to calculate win/loss ratio and total matches.
+            const processedUsers = fetchedUsers.map(user => {
+                const totalMatches = (user.totalMatchesWon || 0) + (user.totalMatchesLost || 0);
+                return {
+                    ...user,
+                    winLossRatio: totalMatches > 0 ? ((user.totalMatchesWon || 0) / totalMatches) : 0,
+                    totalMatches: totalMatches,
+                };
+            });
+            setUsers(processedUsers);
+            setLoadingStats(false); // Stats loading complete.
+            console.log("StatsPage: Users state updated, loadingStats set to false.");
+        });
+
+        // Cleanup function: unsubscribe from Firestore listener.
+        return () => {
+            console.log("StatsPage: Cleaning up Firestore listener.");
+            unsubscribe();
+        };
+    }, [db, loadingAuth]); // Re-run effect when db or loadingAuth changes.
+
+    // Filter and sort users based on current criteria.
+    const sortedAndFilteredUsers = [...users]
+        .filter(user => {
+            if (filterType === 'mine' && userId) {
+                return user.id === userId; // Only show current user's stats.
+            }
+            return true; // Show all users.
+        })
+        .sort((a, b) => {
+            let valA, valB;
+            // Assign values based on sorting criteria.
+            if (sortBy === 'winLossRatio') {
+                valA = a.winLossRatio;
+                valB = b.winLossRatio;
+            } else if (sortBy === 'totalMatchesWon') {
+                valA = a.totalMatchesWon || 0;
+                valB = b.totalMatchesWon || 0;
+            } else if (sortBy === 'totalGamesWon') {
+                valA = a.totalGamesWon || 0;
+                valB = b.totalGamesWon || 0;
+            } else if (sortBy === 'totalMatches') {
+                valA = a.totalMatches || 0;
+                valB = b.totalMatches || 0;
+            } else { // Default to totalGamesPlayed
+                valA = a.totalGamesPlayed || 0;
+                valB = b.totalGamesPlayed || 0;
+            }
+
+            // Apply sorting order.
+            if (sortOrder === 'asc') {
+                return valA - valB;
+            } else {
+                return valB - valA; // Corrected the sorting logic to use valA and valB consistently
+            }
+        });
+
+    if (loadingAuth || loadingStats) {
+        return <div className="text-center py-8">Loading rankings...</div>;
     }
 
-    setLoadingStats(true);
-    console.log("StatsPage: Attempting to fetch users from Firestore...");
-    // Fetch users in real-time.
-    const unsubscribe = FirestoreService.getUsers((fetchedUsers) => {
-      console.log("StatsPage: Fetched users:", fetchedUsers);
-      // Process fetched users to calculate win/loss ratio and total matches.
-      const processedUsers = fetchedUsers.map(user => {
-        const totalMatches = (user.totalMatchesWon || 0) + (user.totalMatchesLost || 0);
-        return {
-          ...user,
-          winLossRatio: totalMatches > 0 ? ((user.totalMatchesWon || 0) / totalMatches) : 0,
-          totalMatches: totalMatches,
-        };
-      });
-      setUsers(processedUsers);
-      setLoadingStats(false); // Stats loading complete.
-      console.log("StatsPage: Users state updated, loadingStats set to false.");
-    });
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-2xl max-w-6xl mx-auto my-8">
+            <h2 className="text-3xl font-extrabold text-green-800 mb-6 text-center">Player Rankings</h2>
 
-    // Cleanup function: unsubscribe from Firestore listener.
-    return () => {
-        console.log("StatsPage: Cleaning up Firestore listener.");
-        unsubscribe();
-    };
-  }, [db, loadingAuth]); // Re-run effect when db or loadingAuth changes.
+            <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded-lg shadow-inner justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <label htmlFor="filter" className="font-semibold text-gray-700">Filter:</label>
+                    <select
+                        id="filter"
+                        className="p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                    >
+                        <option value="all">All Players</option>
+                        {currentUser && !currentUser.isAnonymous && <option value="mine">My Stats</option>}
+                    </select>
+                </div>
 
-  // Filter and sort users based on current criteria.
-  const sortedAndFilteredUsers = [...users]
-    .filter(user => {
-      if (filterType === 'mine' && userId) {
-        return user.id === userId; // Only show current user's stats.
-      }
-      return true; // Show all users.
-    })
-    .sort((a, b) => {
-      let valA, valB;
-      // Assign values based on sorting criteria.
-      if (sortBy === 'winLossRatio') {
-        valA = a.winLossRatio;
-        valB = b.winLossRatio;
-      } else if (sortBy === 'totalMatchesWon') {
-        valA = a.totalMatchesWon || 0;
-        valB = b.totalMatchesWon || 0;
-      } else if (sortBy === 'totalGamesWon') {
-        valA = a.totalGamesWon || 0;
-        valB = b.totalGamesWon || 0;
-      } else if (sortBy === 'totalMatches') {
-        valA = a.totalMatches || 0;
-        valB = b.totalMatches || 0;
-      } else { // Default to totalGamesPlayed
-        valA = a.totalGamesPlayed || 0;
-        valB = b.totalGamesPlayed || 0;
-      }
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
+                    <label htmlFor="sortBy" className="font-semibold text-gray-700">Sort By:</label>
+                    <select
+                        id="sortBy"
+                        className="p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                    >
+                        <option value="winLossRatio">Win/Loss Ratio</option>
+                        <option value="totalMatchesWon">Total Matches Won</option>
+                        <option value="totalGamesWon">Total Games Won</option>
+                        <option value="totalGamesPlayed">Total Games Played (within matches)</option>
+                        <option value="totalMatches">Total Matches Played</option>
+                    </select>
+                </div>
 
-      // Apply sorting order.
-      if (sortOrder === 'asc') {
-        return valA - valB;
-      } else {
-        return valB - valA; // Corrected the sorting logic to use valA and valB consistently
-      }
-    });
+                <div className="flex items-center gap-2 mt-4 md:mt-0">
+                    <button
+                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                        className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                    >
+                        {sortOrder === 'asc' ? (
+                            <span>&#8593; Ascending</span>
+                        ) : (
+                            <span>&#8595; Descending</span>
+                        )}
+                    </button>
+                </div>
+            </div>
 
-  if (loadingAuth || loadingStats) {
-    return <div className="text-center py-8">Loading rankings...</div>;
-  }
-
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-2xl max-w-6xl mx-auto my-8">
-      <h2 className="text-3xl font-extrabold text-green-800 mb-6 text-center">Player Rankings</h2>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded-lg shadow-inner justify-between items-center">
-        <div className="flex items-center gap-2">
-          <label htmlFor="filter" className="font-semibold text-gray-700">Filter:</label>
-          <select
-            id="filter"
-            className="p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-          >
-            <option value="all">All Players</option>
-            {currentUser && !currentUser.isAnonymous && <option value="mine">My Stats</option>}
-          </select>
+            <div className="overflow-x-auto rounded-lg shadow-md border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-blue-100">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Rank</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Player</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">User ID</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Matches Won</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Matches Lost</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Win/Loss Ratio</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Games Won</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Games Lost</th>
+                            <th className="px-4 py-3 whitespace-nowrap text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Total Games Played</th>
+                            <th className="px-4 py-3 whitespace-nowrap text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Total Matches Played</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {sortedAndFilteredUsers.length === 0 ? (
+                            <tr>
+                                <td colSpan="10" className="px-4 py-4 text-center text-gray-500">
+                                    No players found or no data available. Play some matches!
+                                </td>
+                            </tr>
+                        ) : (
+                            sortedAndFilteredUsers.map((user, index) => (
+                                <tr key={user.id} className={`${user.id === userId ? 'bg-yellow-50 font-bold' : 'hover:bg-gray-50'}`}>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-800 flex items-center gap-2">
+                                        <img
+                                            src={user.photoURL || 'https://placehold.co/24x24/cccccc/000000?text=U'}
+                                            alt="Avatar"
+                                            className="w-6 h-6 rounded-full border border-gray-300"
+                                        />
+                                        {user.displayName}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-700 font-mono text-xs break-words">{user.id}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatchesWon || 0}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatchesLost || 0}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.winLossRatio.toFixed(3)}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesWon || 0}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesLost || 0}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesPlayed || 0}</td>
+                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatches || 0}</td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            <p className="mt-6 text-sm text-gray-500 text-center">
+                Note: "Total Games Played" refers to individual games within a best-of-N match.
+            </p>
         </div>
-
-        <div className="flex items-center gap-2 mt-4 md:mt-0">
-          <label htmlFor="sortBy" className="font-semibold text-gray-700">Sort By:</label>
-          <select
-            id="sortBy"
-            className="p-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-          >
-            <option value="winLossRatio">Win/Loss Ratio</option>
-            <option value="totalMatchesWon">Total Matches Won</option>
-            <option value="totalGamesWon">Total Games Won</option>
-            <option value="totalGamesPlayed">Total Games Played (within matches)</option>
-            <option value="totalMatches">Total Matches Played</option>
-          </select>
-        </div>
-
-        <div className="flex items-center gap-2 mt-4 md:mt-0">
-          <button
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="p-2 bg-gray-200 hover:bg-gray-300 rounded-lg shadow-sm transition-colors flex items-center gap-1"
-          >
-            {sortOrder === 'asc' ? (
-                <span>&#8593; Ascending</span>
-              ) : (
-                <span>&#8595; Descending</span>
-              )}
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto rounded-lg shadow-md border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-blue-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Rank</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Player</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">User ID</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Matches Won</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Matches Lost</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Win/Loss Ratio</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Games Won</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Games Lost</th>
-              <th className="px-4 py-3 whitespace-nowrap text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Total Games Played</th>
-              <th className="px-4 py-3 whitespace-nowrap text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Total Matches Played</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {sortedAndFilteredUsers.length === 0 ? (
-              <tr>
-                <td colSpan="10" className="px-4 py-4 text-center text-gray-500">
-                  No players found or no data available. Play some matches!
-                </td>
-              </tr>
-            ) : (
-              sortedAndFilteredUsers.map((user, index) => (
-                <tr key={user.id} className={`${user.id === userId ? 'bg-yellow-50 font-bold' : 'hover:bg-gray-50'}`}>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-800 flex items-center gap-2">
-                    <img
-                      src={user.photoURL || 'https://placehold.co/24x24/cccccc/000000?text=U'}
-                      alt="Avatar"
-                      className="w-6 h-6 rounded-full border border-gray-300"
-                    />
-                    {user.displayName}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 font-mono text-xs break-words">{user.id}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatchesWon || 0}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatchesLost || 0}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.winLossRatio.toFixed(3)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesWon || 0}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesLost || 0}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalGamesPlayed || 0}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{user.totalMatches || 0}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-6 text-sm text-gray-500 text-center">
-        Note: "Total Games Played" refers to individual games within a best-of-N match.
-      </p>
-    </div>
-  );
+    );
 };
 
 // --- Main App Component ---
 // This component handles routing and overall application layout.
 const App = () => {
-  const [currentPage, setCurrentPage] = useState('game'); // State to control which page is displayed.
-  const { currentUser, loadingAuth } = useContext(AuthContext); // Access authentication state from context.
+    const [currentPage, setCurrentPage] = useState('game'); // State to control which page is displayed.
+    const { currentUser, loadingAuth } = useContext(AuthContext); // Access authentication state from context.
 
-  console.log("App component rendering. CurrentPage:", currentPage, "LoadingAuth:", loadingAuth, "CurrentUser:", currentUser?.uid);
+    console.log("App component rendering. CurrentPage:", currentPage, "LoadingAuth:", loadingAuth, "CurrentUser:", currentUser?.uid);
 
-  // Display a loading indicator while authentication state is being determined.
-  if (loadingAuth) {
+    // Display a loading indicator while authentication state is being determined.
+    if (loadingAuth) {
+        return (
+            <div className="min-h-screen bg-gray-100 font-inter antialiased flex items-center justify-center">
+                <div className="text-xl font-semibold text-gray-700">Loading application...</div>
+            </div>
+        );
+    }
+
     return (
-      <div className="min-h-screen bg-gray-100 font-inter antialiased flex items-center justify-center">
-        <div className="text-xl font-semibold text-gray-700">Loading application...</div>
-      </div>
+        <div className="min-h-screen bg-gray-100 font-inter antialiased">
+            <Header onNavigate={setCurrentPage} /> {/* Header for navigation. */}
+            <main className="container mx-auto p-4">
+                {/* Conditional rendering: show LoginPage if not authenticated, otherwise show game or stats. */}
+                {!currentUser || currentUser.isAnonymous ? (
+                    <LoginPage />
+                ) : (
+                    <>
+                        {currentPage === 'game' && <BackgammonGame onMatchEnd={() => setCurrentPage('stats')} />}
+                        {currentPage === 'stats' && <StatsPage />}
+                    </>
+                )}
+            </main>
+        </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-100 font-inter antialiased">
-      <Header onNavigate={setCurrentPage} /> {/* Header for navigation. */}
-      <main className="container mx-auto p-4">
-        {/* Conditional rendering: show LoginPage if not authenticated, otherwise show game or stats. */}
-        {!currentUser || currentUser.isAnonymous ? (
-          <LoginPage />
-        ) : (
-          <>
-            {currentPage === 'game' && <BackgammonGame onMatchEnd={() => setCurrentPage('stats')} />}
-            {currentPage === 'stats' && <StatsPage />}
-          </>
-        )}
-      </main>
-    </div>
-  );
 };
 
 // The top-level component that wraps the entire application with AuthProvider.
