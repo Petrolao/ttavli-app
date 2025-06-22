@@ -1074,7 +1074,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
           }
       });
       return Array.from(uniqueMovesMap.values());
-  }, [mustReenterFromBar, areAllCheckersInHomeBoard, getOpponentColor, isPointBlocked]); // Removed whitePath, blackPath as they are global constants
+  }, [mustReenterFromBar, areAllCheckersInHomeBoard]); // Removed `getOpponentColor` and `isPointBlocked`
 
   const endMatch = useCallback((playerWon) => {
     setIsPlaying(false);
@@ -1380,8 +1380,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
             setMustReenterFromBar(false);
         }
 
-    }, [moveHistory, boardState, availableDice, currentPlayer, getOpponentColor, isPointBlocked, setAvailableDice, setSelectedPoint, setPossibleMovesInfo, setGameMessage, setMustReenterFromBar, calculatePossibleMoves]);
-
+    }, [moveHistory, boardState, availableDice, currentPlayer, setAvailableDice, setSelectedPoint, setPossibleMovesInfo, setGameMessage, setMustReenterFromBar, calculatePossibleMoves]); // Removed `getOpponentColor` and `isPointBlocked` as they are no longer direct dependencies of `undoLastMove`
 
     useEffect(() => {
         initializeBoard();
@@ -1724,7 +1723,7 @@ const StatsPage = () => {
             if (!db) console.warn("StatsPage: db is not initialized.");
             console.log("StatsPage: Attempting to fetch users from Firestore...");
             const unsubscribe = FirestoreService.getUsers((fetchedUsers) => {
-                console.log("StatsPage: Fetched users:", fetchedUsers);
+                console.log("Users fetched:", fetchedUsers.length, "users."); // Console log moved here
                 const processedUsers = fetchedUsers.map(user => {
                     const totalMatches = (user.totalMatchesWon || 0) + (user.totalMatchesLost || 0);
                     return {
