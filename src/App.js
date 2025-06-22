@@ -3,24 +3,15 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 // Import Tone.js for sound effects.
-import * as Tone from 'tone';
+// Corrected import: explicitly import NoiseSynth, PluckSynth, and other Tone.js modules.
+import { NoiseSynth, PluckSynth, context as ToneContext, start as ToneStart } from 'tone';
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
-// Retrieve Firebase configuration and app ID from Netlify environment variables.
-// Ensure these are set in Netlify's Site settings -> Build & deploy -> Environment variables
-// They should be prefixed with REACT_APP_ in Netlify.
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID, // Use REACT_APP_FIREBASE_APP_ID if you set it
-  // measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID // Optional
-};
-// Use the projectId as the appId for Firestore paths in this setup
-const appId = process.env.REACT_APP_FIREBASE_PROJECT_ID || 'default-app-id'; // Fallback for local dev
+// --- Firebase Configuration and Initialization ---
+// Retrieve Firebase configuration and app ID from the environment.
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // Declare Firebase instances globally so they are initialized once.
 let app;
@@ -240,7 +231,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   useEffect(() => {
     // Initialize main rolling sound synth
     if (!rollEventSynthRef.current) {
-        rollEventSynthRef.current = new Tone.NoiseSynth({
+        rollEventSynthRef.current = new NoiseSynth({ // Use NoiseSynth directly
             noise: {
                 type: 'brown' // Brown noise for a lower frequency, rumbling sound
             },
@@ -257,7 +248,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
 
     // Initialize impact sound synth (short, sharp click/thud)
     if (!impactSynthRef.current) {
-        impactSynthRef.current = new Tone.PluckSynth({
+        impactSynthRef.current = new PluckSynth({ // Use PluckSynth directly
             attackNoise: 1, // High attack noise for a percussive feel
             dampening: 2000,
             resonance: 0.7
@@ -282,9 +273,9 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   const playDiceRollSound = async (duration = 0.8) => { // Increased duration for more rolling feel
     if (!soundEnabled) return;
 
-    if (Tone.context.state !== 'running') {
+    if (ToneContext.state !== 'running') { // Use ToneContext
       try {
-        await Tone.start();
+        await ToneStart(); // Use ToneStart
         console.log("Tone.js context started successfully for dice sound.");
       } catch (error) {
         console.error("Error starting Tone.js context for dice sound:", error);
@@ -292,8 +283,8 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
       }
     }
 
-    // Always use Tone.context.currentTime for scheduling to prevent negative time errors.
-    const start = Tone.context.currentTime;
+    // Always use ToneContext.currentTime for scheduling to prevent negative time errors.
+    const start = ToneContext.currentTime; // Use ToneContext
     const end = start + duration;
 
     // Main rolling sound: bursts of noise
