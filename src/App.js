@@ -1,9 +1,10 @@
-import React, { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
+// ReactDOM import removed as it's not typically imported in component files for modern React builds
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 // Tone.js imports removed as requested to resolve compilation issues.
-// import * as Tone from 'tone'; // Removed
+// import * => Tone from 'tone'; // Removed
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
@@ -45,6 +46,38 @@ const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null); // Stores Firebase user object
   const [userId, setUserId] = useState(null);           // Stores the user's UID or a generated ID for anonymous users
   const [loadingAuth, setLoadingAuth] = useState(true); // Indicates if authentication state is still being determined
+
+  // Google Sign-In function
+  const signInWithGoogle = useCallback(async () => {
+    if (!auth) {
+        console.error("Firebase Auth not initialized. Cannot sign in with Google.");
+        return;
+    }
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      console.log("Google sign-in successful.");
+    } catch (error) {
+      console.error("Error signing in with Google:", error);
+      // Handle specific errors like pop-up closed by user
+      // Replaced alert with console.log as alerts are forbidden
+      console.log("Google sign-in cancelled. Please try again.");
+    }
+  }, []);
+
+  // Logout function
+  const logout = useCallback(async () => {
+    if (!auth) {
+        console.error("Firebase Auth not initialized. Cannot log out.");
+        return;
+    }
+    try {
+      await signOut(auth);
+      console.log("User signed out.");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  }, []);
 
   useEffect(() => {
     // If Firebase Auth is not initialized, stop loading and return.
@@ -124,40 +157,10 @@ const AuthProvider = ({ children }) => {
       console.log("Cleaning up onAuthStateChanged listener.");
       unsubscribe();
     };
-  }, [appId]); // Re-run effect only if appId changes.
+  }, [signInWithGoogle, logout]); // Added dependencies to useEffect
 
-  // Function to sign in with Google.
-  const signInWithGoogle = async () => {
-    if (!auth) {
-      console.error("Firebase Auth not initialized. Cannot sign in.");
-      return;
-    }
-    const provider = new GoogleAuthProvider();
-    try {
-      console.log("Attempting Google sign-in popup...");
-      await signInWithPopup(auth, provider);
-      console.log("Google sign-in successful.");
-    } catch (error) {
-      console.error("Error signing in with Google:", error);
-    }
-  };
-
-  // Function to log out the current user.
-  const logout = async () => {
-    if (auth) {
-      try {
-        console.log("Attempting to log out...");
-        await signOut(auth);
-        console.log("User logged out successfully.");
-      } catch (error) {
-        console.error("Error signing out:", error);
-      }
-    }
-  };
-
-  // Provide auth state and functions to children components.
   return (
-    <AuthContext.Provider value={{ currentUser, userId, loadingAuth, signInWithGoogle, logout, db, appId }}>
+    <AuthContext.Provider value={{ currentUser, userId, loadingAuth, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -205,7 +208,7 @@ const FirestoreService = {
       console.warn("Firestore not initialized. Cannot get users.");
       return () => {}; // Return a no-op unsubscribe function if db isn't ready.
     }
-    console.log("Attempting to fetch users. Current Auth User ID:", auth?.currentUser?.uid);
+    console.log("Attempting to fetch users from Firestore...");
     const usersCollectionRef = collection(db, 'artifacts', appId, 'users');
     const q = query(usersCollectionRef);
     // onSnapshot provides real-time updates.
@@ -222,41 +225,26 @@ const FirestoreService = {
 // --- Game Components ---
 
 // Dice Component: Displays dice values and a roll button with animation.
-const Dice = ({ dice, setDice, rollDice, disabled }) => { // Removed soundEnabled prop
+const Dice = ({ dice, setDice, rollDice, disabled }) => {
   const [isRolling, setIsRolling] = useState(false);
-  // Tone.js sound refs removed.
-  // const rollEventSynthRef = useRef(null);
-  // const impactSynthRef = useRef(null);
 
   useEffect(() => {
-    // Tone.js synth initialization and cleanup removed.
-    // Cleanup function for the effect:
     return () => {
-      // if (rollEventSynthRef.current) {
-      //   rollEventSynthRef.current.dispose();
-      //   rollEventSynthRef.current = null;
-      // }
-      // if (impactSynthRef.current) {
-      //   impactSynthRef.current.dispose();
-      //   impactSynthRef.current = null;
-      // }
+      // Cleanup for sound refs removed as sound functionality is removed.
     };
   }, []);
 
-  // Tone.js sound playing function removed.
-  // const playDiceRollSound = async (duration = 0.8) => { /* ... removed ... */ };
 
   const handleRollDice = async () => {
     if (disabled || isRolling) return;
 
     setIsRolling(true);
-    // playDiceRollSound(0.8); // Call to sound function removed
 
     // Simulate rolling animation by rapidly changing dice numbers
     let rollCount = 0;
-    const maxRolls = 15; // Increased rolls for longer animation
-    const rollInterval = 50; // Shorter interval for faster animation
-    let finalDie1, finalDie2; // Variables to store the final dice values
+    const maxRolls = 15;
+    const rollInterval = 50;
+    let finalDie1, finalDie2;
 
     const animateRoll = setInterval(() => {
         if (rollCount < maxRolls) {
@@ -268,11 +256,10 @@ const Dice = ({ dice, setDice, rollDice, disabled }) => { // Removed soundEnable
         } else {
             clearInterval(animateRoll);
             setIsRolling(false);
-            // Generate the final dice values after animation
             finalDie1 = Math.floor(Math.random() * 6) + 1;
             finalDie2 = Math.floor(Math.random() * 6) + 1;
-            setDice([finalDie1, finalDie2]); // Ensure the displayed dice match the final values
-            rollDice(finalDie1, finalDie2); // Pass final values to the game logic
+            setDice([finalDie1, finalDie2]);
+            rollDice(finalDie1, finalDie2);
         }
     }, rollInterval);
   };
@@ -280,7 +267,6 @@ const Dice = ({ dice, setDice, rollDice, disabled }) => { // Removed soundEnable
   return (
     <div className="flex flex-col items-center p-4 bg-gray-100 rounded-lg shadow-inner">
       <h3 className="text-xl font-bold text-gray-800 mb-3">Dice</h3>
-      {/* Dice display removed from here to be moved onto the board */}
       <button
         onClick={handleRollDice}
         disabled={disabled || isRolling}
@@ -743,27 +729,26 @@ const ConfirmModal = ({ message, onConfirm, onCancel }) => {
 // --- Main Game Logic Component (BackgammonGame) ---
 const BackgammonGame = ({ onMatchEnd }) => {
   const { currentUser, userId } = useContext(AuthContext);
-  const [matchFormat, setMatchFormat] = useState(7); // Number of games in a match (e.g., best of 7)
-  const [playerScore, setPlayerScore] = useState(0);    // Current player's score in the match
-  const [opponentScore, setOpponentScore] = useState(0); // Opponent's score in the match
-  const [gameMessage, setGameMessage] = useState("Click 'Start Match' to begin!"); // Messages for user guidance
-  const [isPlaying, setIsPlaying] = useState(false);     // Game active state
-  const [showModal, setShowModal] = useState(false);     // State for general info modal (e.g., match end)
-  const [modalMessage, setModalMessage] = useState('');   // Message for the general info modal
-  const [showConfirmModal, setShowConfirmModal] = useState(false); // State for custom confirmation modal
-  const [confirmModalAction, setConfirmModalAction] = useState(null); // Action to run if confirmation is given
+  const [matchFormat, setMatchFormat] = useState(7);
+  const [playerScore, setPlayerScore] = useState(0);
+  const [opponentScore, setOpponentScore] = useState(0);
+  const [gameMessage, setGameMessage] = useState("Click 'Start Match' to begin!");
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalAction, setConfirmModalAction] = useState(null);
 
-  const [dice, setDice] = useState([0, 0]);             // Current dice roll values
-  const [availableDice, setAvailableDice] = useState([]); // Dice values that can still be used for moves
-  const [currentPlayer, setCurrentPlayer] = useState('white'); // 'white' or 'black' player turn
-  const [selectedPoint, setSelectedPoint] = useState(null); // The board point (1-24) from which a checker is selected
-  // Change possibleMovePoints to store objects with targetPoint and diceUsed
-  const [possibleMovesInfo, setPossibleMovesInfo] = useState([]); // Array of { targetPoint, diceUsed[] }
-  const [mustReenterFromBar, setMustReenterFromBar] = useState(false); // Flag if player has checkers on the bar
-  // const [soundEnabled, setSoundEnabled] = useState(true); // Sound enabled state removed
-  const [moveHistory, setMoveHistory] = useState([]); // Stores history of individual checker moves
+  const [dice, setDice] = useState([0, 0]);
+  const [availableDice, setAvailableDice] = useState([]);
+  const [currentPlayer, setCurrentPlayer] = useState('white');
+  const [selectedPoint, setSelectedPoint] = useState(null);
+  const [possibleMovesInfo, setPossibleMovesInfo] = useState([]);
+  const [mustReenterFromBar, setMustReenterFromBar] = useState(false);
+  const [moveHistory, setMoveHistory] = useState([]);
 
-  // Define the custom paths for movement as per user's description
+  // Define the custom paths for movement as per user's description.
+  // Moved these constants inside the component to ensure referential stability for useCallback.
   const whitePath = [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13];
   const blackPath = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -798,38 +783,31 @@ const BackgammonGame = ({ onMatchEnd }) => {
   const getOpponentColor = useCallback((playerColor) => (playerColor === 'white' ? 'black' : 'opponent'), []);
 
   // Determines if a point is blocked by the opponent (2 or more opponent checkers).
-  const isPointBlocked = useCallback((pointIndex, playerColor, currentBoardState = boardState) => {
+  const isPointBlocked = useCallback((pointIndex, playerColor, currentBoardState) => {
     const point = currentBoardState.points[pointIndex];
-    if (!point || point.checkers.length === 0) return false; // Point is empty or no checkers.
+    if (!point || point.checkers.length === 0) return false;
     const opponentColor = getOpponentColor(playerColor);
     return point.checkers[0] === opponentColor && point.checkers.length >= 2;
-  }, [getOpponentColor, boardState]);
+  }, [getOpponentColor]);
 
   // Checks if all of a player's checkers are in their home board.
-  const areAllCheckersInHomeBoard = useCallback((playerColor, currentBoardState = boardState) => {
+  const areAllCheckersInHomeBoard = useCallback((playerColor, currentBoardState) => {
     const totalCheckers = 15;
     let checkersBorneOff = currentBoardState.home[playerColor];
     let checkersInHomeQuadrantOnBoard = 0;
 
     const isWhite = playerColor === 'white';
-    // The home points are the last 6 points in their respective paths
-    // For white, these are [6, 5, 4, 3, 2, 1]
-    // For black, these are [19, 20, 21, 22, 23, 24]
     const homePointsForBearingOff = isWhite ? [6, 5, 4, 3, 2, 1] : [19, 20, 21, 22, 23, 24];
 
-    // If checkers are on the bar, they are not yet in the home board, so bearing off is not possible.
     if (currentBoardState.bar[playerColor] > 0) {
         return false;
     }
 
-    // Iterate through all 24 board points
     for (let i = 0; i < 24; i++) {
         const gamePoint = i + 1;
         const checkersOnCurrentPoint = currentBoardState.points[i].checkers.filter(c => c === playerColor).length;
 
         if (checkersOnCurrentPoint > 0) {
-            // If any checker of the current player is on a point *not* in their home bearing-off region,
-            // then not all checkers are in the home board.
             if (!homePointsForBearingOff.includes(gamePoint)) {
                 return false;
             } else {
@@ -837,127 +815,116 @@ const BackgammonGame = ({ onMatchEnd }) => {
             }
         }
     }
-
-    // All checkers are considered "home" if total checkers (borne off + on home board points) equals 15.
     return (checkersBorneOff + checkersInHomeQuadrantOnBoard) === totalCheckers;
-  }, [boardState]); // Removed whitePath, blackPath from here as homePointsForBearingOff is hardcoded
+  }, []);
 
   // Helper function to check if any moves are possible with given state and dice
   const checkIfAnyPossibleMoves = useCallback((currentBoardState, player, currentDice) => {
     const isWhite = player === 'white';
-    const playerPath = isWhite ? whitePath : blackPath; // Accessing whitePath, blackPath from outer scope
+    const playerPath = isWhite ? whitePath : blackPath;
 
-    // Check for bar re-entry moves first
     if (currentBoardState.bar[player] > 0) {
         for (const die of currentDice) {
             let targetGamePoint;
             if (isWhite) {
-                targetGamePoint = die;      // White re-enters on points 1-6
+                targetGamePoint = die;
             } else {
-                targetGamePoint = 18 + die; // Black re-enters on points 19-24
+                targetGamePoint = 18 + die;
             }
             const targetPointIndex = targetGamePoint - 1;
             if (targetPointIndex >= 0 && targetPointIndex < 24 && !isPointBlocked(targetPointIndex, player, currentBoardState)) {
-                return true; // Found a possible bar re-entry move
+                return true;
             }
         }
-        return false; // No possible bar re-entry moves
+        return false;
     }
 
-    // If no checkers on bar, check for moves from the board
     for (let i = 0; i < 24; i++) {
         const currentPointCheckers = currentBoardState.points[i].checkers;
         if (currentPointCheckers.length > 0 && currentPointCheckers[0] === player) {
             const fromPoint = i + 1;
             const fromPointIndexInPath = playerPath.indexOf(fromPoint);
             if (fromPointIndexInPath === -1) {
-                continue; // This checker is not on the player's active path (shouldn't happen with correct setup)
+                continue;
             }
 
             for (const die of currentDice) {
                 let targetPathIndex = fromPointIndexInPath + die;
 
-                if (targetPathIndex >= playerPath.length) { // Potential bearing off
+                if (targetPathIndex >= playerPath.length) {
                     if (areAllCheckersInHomeBoard(player, currentBoardState)) {
                         let noCheckersEarlierInPath = true;
-                        // Check if any checkers are on a point further away than 'fromPoint' in the bearing off quadrant
                         const homePoints = isWhite ? [6, 5, 4, 3, 2, 1] : [19, 20, 21, 22, 23, 24];
-                        const fromPointHomeIndex = homePoints.indexOf(fromPoint); // Index within home points (0-5)
-                        if (fromPointHomeIndex !== -1) { // Only check if current checker is in home board
-                            for (let k = 0; k < fromPointHomeIndex; k++) { // Check points "closer" to bearing off
-                                const furtherPointOnBoard = homePoints[k]; // These are points with higher value for white, lower for black
+                        const fromPointHomeIndex = homePoints.indexOf(fromPoint);
+                        if (fromPointHomeIndex !== -1) {
+                            for (let k = 0; k < fromPointHomeIndex; k++) {
+                                const furtherPointOnBoard = homePoints[k];
                                 if (currentBoardState.points[furtherPointOnBoard - 1].checkers.includes(player)) {
-                                    noCheckersEarlierInPath = false; // Found a checker further away (i.e. "earlier" in path)
+                                    noCheckersEarlierInPath = false;
                                     break;
                                 }
                             }
                         } else {
-                            noCheckersEarlierInPath = false; // Checker is not even in home board, so can't bear off
+                            noCheckersEarlierInPath = false;
                         }
 
-                        // Special rule: if die is exact match for point OR die is larger than any point in home board
-                        // AND all other checkers are on points closer to bear-off
                         const dieCanOvershoot = die >= (isWhite ? fromPoint : (25 - fromPoint));
 
                         if (noCheckersEarlierInPath) {
-                             // If die exactly matches the point, or it overshoots and this is the highest point
-                            if ( (isWhite && fromPoint === die) || (!isWhite && (25 - fromPoint) === die) ) {
-                                return true; // Exact bear off
+                             if ( (isWhite && fromPoint === die) || (!isWhite && (25 - fromPoint) === die) ) {
+                                return true;
                             }
-                            // Overshoot rule: if die is larger than current point AND this is the furthest checker
                             if (dieCanOvershoot) {
                                 let isFurthestChecker = true;
                                 for (let k = 0; k < 24; k++) {
                                     if (currentBoardState.points[k].checkers.includes(player)) {
-                                        if (isWhite && k + 1 > fromPoint) { // White: if a checker is on a point higher than 'fromPoint'
+                                        if (isWhite && k + 1 > fromPoint) {
                                             isFurthestChecker = false;
                                             break;
                                         }
-                                        if (!isWhite && k + 1 < fromPoint) { // Black: if a checker is on a point lower than 'fromPoint'
+                                        if (!isWhite && k + 1 < fromPoint) {
                                             isFurthestChecker = false;
                                             break;
                                         }
                                     }
                                 }
                                 if (isFurthestChecker) {
-                                    return true; // Overshoot bear off
+                                    return true;
                                 }
                             }
                         }
                     }
-                } else { // Regular move on board
+                } else {
                     const targetGamePoint = playerPath[targetPathIndex];
                     if (targetGamePoint >= 1 && targetGamePoint <= 24) {
                         if (!isPointBlocked(targetGamePoint - 1, player, currentBoardState)) {
-                            return true; // Found a possible regular move
+                            return true;
                         }
                     }
                 }
             }
         }
     }
-    return false; // No possible moves found
-  }, [isPointBlocked, areAllCheckersInHomeBoard, whitePath, blackPath]); // Added dependencies
+    return false;
+  }, [areAllCheckersInHomeBoard, isPointBlocked, whitePath, blackPath]);
 
   // Calculates all possible moves for a checker from a given `fromPoint` with `currentDice`.
   // Returns an array of objects: { targetPoint: number, diceUsed: number[] }
   const calculatePossibleMoves = useCallback((fromPoint, currentDice, playerColor, board) => {
-      const moves = []; // Will store objects: { targetPoint, diceUsed[] }
+      const moves = [];
       const isWhite = playerColor === 'white';
       const playerPath = isWhite ? whitePath : blackPath;
 
-      // Helper for single step move validation and target determination
       const checkSingleStepLogic = (startPoint, startPathIndex, die, tempBoard, playerColor, isInitialFromBar = false) => {
-          let targetGamePoint = null; // Default to null for invalid/no move
+          let targetGamePoint = null;
           let isValid = false;
           let isBearingOff = false;
 
-          // If moving from bar, target calculation is direct based on die roll
           if (isInitialFromBar && startPoint === 'bar') {
               if (isWhite) {
-                  targetGamePoint = die; // White re-enters on points 1-6
+                  targetGamePoint = die;
               } else {
-                  targetGamePoint = 18 + die; // Black re-enters on points 19-24
+                  targetGamePoint = 18 + die;
               }
               const targetPointIndex = targetGamePoint - 1;
               if (targetPointIndex >= 0 && targetPointIndex < 24 && !isPointBlocked(targetPointIndex, playerColor, tempBoard)) {
@@ -966,19 +933,17 @@ const BackgammonGame = ({ onMatchEnd }) => {
               return { targetGamePoint, isValid, isBearingOff: false };
           }
 
-          // If moving from board point
           const targetPathIndex = startPathIndex + die;
 
-          if (targetPathIndex >= playerPath.length) { // Potential bearing off
+          if (targetPathIndex >= playerPath.length) {
               isBearingOff = true;
               if (areAllCheckersInHomeBoard(playerColor, tempBoard)) {
-                  // Check overshoot rule: no checkers should be on points further away from the bear-off area
                   let noCheckersFurtherAway = true;
                   const homePoints = isWhite ? [6, 5, 4, 3, 2, 1] : [19, 20, 21, 22, 23, 24];
                   const fromPointHomeIndex = homePoints.indexOf(startPoint);
 
                   if (fromPointHomeIndex !== -1) {
-                      for (let i = 0; i < fromPointHomeIndex; i++) { // Check points "further" in the path (closer to start of home board)
+                      for (let i = 0; i < fromPointHomeIndex; i++) {
                           const furtherPoint = homePoints[i];
                           if (tempBoard.points[furtherPoint - 1].checkers.includes(playerColor)) {
                               noCheckersFurtherAway = false;
@@ -986,20 +951,18 @@ const BackgammonGame = ({ onMatchEnd }) => {
                           }
                       }
                   } else {
-                      // Checker is not in the home board at all, so cannot bear off
                       noCheckersFurtherAway = false;
                   }
 
                   if (noCheckersFurtherAway) {
-                       // If die matches the point exactly or is greater than the distance to bear off (overshoot)
-                       const distanceToBearOff = isWhite ? startPoint : (25 - startPoint); // How many pips needed to bear off this checker
+                       const distanceToBearOff = isWhite ? startPoint : (25 - startPoint);
                        if (die === distanceToBearOff || (die > distanceToBearOff && noCheckersFurtherAway)) {
-                           targetGamePoint = isWhite ? 0 : 25; // Special value for white/black bear-off
+                           targetGamePoint = isWhite ? 0 : 25;
                            isValid = true;
                        }
                   }
               }
-          } else { // Regular move on board
+          } else {
               const actualTargetGamePoint = playerPath[targetPathIndex];
               if (actualTargetGamePoint >= 1 && actualTargetGamePoint <= 24) {
                   if (!isPointBlocked(actualTargetGamePoint - 1, playerColor, tempBoard)) {
@@ -1011,53 +974,44 @@ const BackgammonGame = ({ onMatchEnd }) => {
           return { targetGamePoint, isValid, isBearingOff };
       };
 
-      // 1. Bar re-entry moves (if applicable)
       if (mustReenterFromBar && fromPoint === 'bar') {
           currentDice.forEach(die => {
-              const { targetGamePoint, isValid } = checkSingleStepLogic('bar', -1, die, board, playerColor, true); // -1 for path index as it's from bar
+              const { targetGamePoint, isValid } = checkSingleStepLogic('bar', -1, die, board, playerColor, true);
               if (isValid) {
                   moves.push({ targetPoint: targetGamePoint, diceUsed: [die] });
               }
           });
-          // After considering bar re-entry, no other moves are possible from the board
-          // So, if we are in mustReenterFromBar state and selected point is 'bar', return these moves.
           return moves;
       }
 
-      // If not from bar, ensure fromPoint is a valid board point and has current player's checker
       if (fromPoint === 'bar' || !board.points[fromPoint - 1] || board.points[fromPoint - 1].checkers[0] !== playerColor) {
-        return []; // Invalid starting point for a board move
+        return [];
       }
 
       const fromPointIndexInPath = playerPath.indexOf(fromPoint);
       if (fromPointIndexInPath === -1) {
-          return []; // Should not happen for a valid checker on the board
+          return [];
       }
 
-      // Recursive helper to find all possible move combinations
       const findAllMoves = (currentFromPoint, currentFromPathIndex, remainingDice, currentBoard, pathDice) => {
           if (remainingDice.length === 0) {
-              return; // No more dice to use
+              return;
           }
 
-          const uniqueDiceConsidered = new Set();
-          // Sort remaining dice to ensure consistent ordering for unique path generation
           const sortedRemainingDice = [...remainingDice].sort((a,b) => a-b);
 
-          sortedRemainingDice.forEach((d1, originalIdx) => {
-              // Create a temporary array to simulate removing this specific die instance
+          sortedRemainingDice.forEach((d1) => {
               const tempRemainingDice = [...sortedRemainingDice];
-              const actualIdx = tempRemainingDice.indexOf(d1); // Find index of the first occurrence of this die
+              const actualIdx = tempRemainingDice.indexOf(d1);
               if (actualIdx > -1) {
                 tempRemainingDice.splice(actualIdx, 1);
               } else {
-                  return; // Should not happen
+                  return;
               }
 
               const tempBoardAfterD1 = JSON.parse(JSON.stringify(currentBoard));
               let checkerSuccessfullyMovedInTemp = true;
 
-              // Hypothetically remove checker from source point for the first step
               if (currentFromPoint === 'bar') {
                   if (tempBoardAfterD1.bar[playerColor] === 0) { checkerSuccessfullyMovedInTemp = false; }
                   else { tempBoardAfterD1.bar[playerColor]--; }
@@ -1075,14 +1029,13 @@ const BackgammonGame = ({ onMatchEnd }) => {
                   checkSingleStepLogic(currentFromPoint, currentFromPathIndex, d1, tempBoardAfterD1, playerColor);
 
               if (isValidIntermediate) {
-                  if (!isIntermedBearOff) { // If not bearing off in intermediate step
+                  if (!isIntermedBearOff) {
                       if (tempBoardAfterD1.points[intermediatePoint - 1].checkers.length === 1 && tempBoardAfterD1.points[intermediatePoint - 1].checkers[0] === getOpponentColor(playerColor)) {
                           tempBoardAfterD1.points[intermediatePoint - 1].checkers.pop();
                           tempBoardAfterD1.bar[getOpponentColor(playerColor)]++;
                       }
-                      // Check for block *after* hitting blot (if it's not a blot, it's just a regular move onto an empty or friendly point)
                       if (isPointBlocked(intermediatePoint - 1, playerColor, tempBoardAfterD1)) {
-                          return; // This intermediate point is blocked, so this path is invalid.
+                          return;
                       }
                       tempBoardAfterD1.points[intermediatePoint - 1].checkers.push(playerColor);
                   }
@@ -1090,7 +1043,6 @@ const BackgammonGame = ({ onMatchEnd }) => {
                   const currentPathDice = [...pathDice, d1];
                   moves.push({ targetPoint: intermediatePoint, diceUsed: currentPathDice.sort((a,b)=>a-b) });
 
-                  // Recurse with remaining dice from the intermediate point
                   const intermediatePointPathIndex = isIntermedBearOff ? playerPath.length : playerPath.indexOf(intermediatePoint);
                   if (intermediatePointPathIndex !== -1 && tempRemainingDice.length > 0) {
                       findAllMoves(intermediatePoint, intermediatePointPathIndex, tempRemainingDice, tempBoardAfterD1, currentPathDice);
@@ -1101,11 +1053,9 @@ const BackgammonGame = ({ onMatchEnd }) => {
 
       findAllMoves(fromPoint, fromPointIndexInPath, currentDice, board, []);
 
-      // Filter for unique target points and prioritize paths with fewer dice or higher sum
-      const uniqueMovesMap = new Map(); // targetPoint -> { targetPoint, diceUsed }
+      const uniqueMovesMap = new Map();
       moves.forEach(move => {
-          const key = move.targetPoint; // Using target point as the unique key
-          // Create a canonical representation of diceUsed for comparison (sorted string)
+          const key = move.targetPoint;
           const currentDiceUsedStr = move.diceUsed.sort((a, b) => a - b).join(',');
 
           if (!uniqueMovesMap.has(key)) {
@@ -1114,12 +1064,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
               const existingMove = uniqueMovesMap.get(key);
               const existingDiceUsedStr = existingMove.diceUsed.sort((a, b) => a - b).join(',');
 
-              // If the dice used are different for the same target, add it as a separate option
               if (currentDiceUsedStr !== existingDiceUsedStr) {
-                  // This scenario means we might have two paths to the same point with different dice combos.
-                  // For now, we'll keep the one that was added first, or apply a specific priority.
-                  // Current implementation prioritizes earlier found moves if key exists,
-                  // or if it's strictly better (fewer dice or higher sum for same # dice).
                   if (move.diceUsed.length < existingMove.diceUsed.length) {
                       uniqueMovesMap.set(key, move);
                   } else if (move.diceUsed.length === existingMove.diceUsed.length) {
@@ -1130,15 +1075,11 @@ const BackgammonGame = ({ onMatchEnd }) => {
                       }
                   }
               }
-              // If diceUsed is the same, no need to add duplicate.
           }
       });
-
-
-      return Array.from(uniqueMovesMap.values()); // Return objects with target and dice used.
+      return Array.from(uniqueMovesMap.values());
   }, [mustReenterFromBar, areAllCheckersInHomeBoard, isPointBlocked, whitePath, blackPath, getOpponentColor]);
 
-  // Ends the entire match and updates user statistics in Firebase.
   const endMatch = useCallback((playerWon) => {
     setIsPlaying(false);
     const winnerGames = playerWon ? playerScore : opponentScore;
@@ -1148,11 +1089,10 @@ const BackgammonGame = ({ onMatchEnd }) => {
     setShowModal(true);
 
     if (currentUser && !currentUser.isAnonymous) {
-      // Prepare match result data for saving.
       const matchResult = {
         player1Id: userId,
         player1DisplayName: currentUser.displayName || 'You',
-        player2Id: 'AI_Opponent', // Assuming single-player vs AI.
+        player2Id: 'AI_Opponent',
         player2DisplayName: 'AI Opponent',
         winnerId: playerWon ? userId : 'AI_Opponent',
         loserId: playerWon ? 'AI_Opponent' : userId,
@@ -1161,44 +1101,41 @@ const BackgammonGame = ({ onMatchEnd }) => {
         player2GamesWon: opponentScore,
       };
 
-      FirestoreService.saveMatchResult(matchResult); // Save match to Firestore.
+      FirestoreService.saveMatchResult(matchResult);
 
-      // Prepare user statistics update.
       const userStatsUpdate = {
-        totalGamesPlayed: (currentUser.totalGamesPlayed || 0) + 1, // Count matches as "games played" for overall stats.
+        totalGamesPlayed: (currentUser.totalGamesPlayed || 0) + 1,
         totalMatchesWon: (currentUser.totalMatchesWon || 0) + (playerWon ? 1 : 0),
         totalMatchesLost: (currentUser.totalMatchesLost || 0) + (playerWon ? 0 : 1),
-        totalGamesWon: (currentUser.totalGamesWon || 0) + playerScore, // Total games won across all matches.
-        totalGamesLost: (currentUser.totalGamesLost || 0) + opponentScore, // Total games lost across all matches.
+        totalGamesWon: (currentUser.totalGamesWon || 0) + playerScore,
+        totalGamesLost: (currentUser.totalGamesLost || 0) + opponentScore,
       };
       const newTotalMatches = userStatsUpdate.totalMatchesWon + userStatsUpdate.totalMatchesLost;
       userStatsUpdate.winLossRatio = newTotalMatches > 0
         ? (userStatsUpdate.totalMatchesWon / newTotalMatches).toFixed(3)
         : 0;
 
-      FirestoreService.updateUserStats(userId, userStatsUpdate); // Update user stats in Firestore.
+      FirestoreService.updateUserStats(userId, userStatsUpdate);
     }
-    onMatchEnd(); // Callback to parent component (App) to navigate to stats page.
+    onMatchEnd();
   }, [currentUser, matchFormat, opponentScore, playerScore, userId, onMatchEnd]);
 
-  // Ends the current player's turn, checking for game win and switching players.
   const endTurn = useCallback(() => {
     if (!isPlaying) return;
 
-    // Check for current game winner (15 checkers borne off).
     if (boardState.home.white === 15) {
         setModalMessage(`White wins this game!`);
         setShowModal(true);
-        setPlayerScore(prev => prev + 1); // Increment match score.
-        initializeBoard(); // Reset board for next game.
+        setPlayerScore(prev => prev + 1);
+        initializeBoard();
         setDice([0, 0]);
         setAvailableDice([]);
         setSelectedPoint(null);
-        setPossibleMovesInfo([]); // Clear possible moves info
+        setPossibleMovesInfo([]);
         setMustReenterFromBar(false);
-        setCurrentPlayer('white'); // White always starts the next game.
+        setCurrentPlayer('white');
         setGameMessage("New game started. White to roll.");
-        setMoveHistory([]); // Clear history for new game/turn
+        setMoveHistory([]);
         return;
     } else if (boardState.home.black === 15) {
         setModalMessage(`Black wins this game!`);
@@ -1208,34 +1145,30 @@ const BackgammonGame = ({ onMatchEnd }) => {
         setDice([0, 0]);
         setAvailableDice([]);
         setSelectedPoint(null);
-        setPossibleMovesInfo([]); // Clear possible moves info
+        setPossibleMovesInfo([]);
         setMustReenterFromBar(false);
-        setCurrentPlayer('black'); // Black starts the next game.
+        setCurrentPlayer('black');
         setGameMessage("New game started. Black to roll.");
-        setMoveHistory([]); // Clear history for new game/turn
+        setMoveHistory([]);
         return;
     }
 
-    // If no game winner, switch to the other player's turn.
     setCurrentPlayer(prev => prev === 'white' ? 'black' : 'white');
     setDice([0, 0]);
-    setAvailableDice([]); // Clear dice for the next turn.
+    setAvailableDice([]);
     setSelectedPoint(null);
-    setPossibleMovesInfo([]); // Clear possible moves info
-    setMustReenterFromBar(false); // Reset bar state for the next turn.
+    setPossibleMovesInfo([]);
+    setMustReenterFromBar(false);
     setGameMessage(`Turn ended. It's now ${getOpponentColor(currentPlayer).charAt(0).toUpperCase() + getOpponentColor(currentPlayer).slice(1)}'s turn. Roll the dice!`);
-    setMoveHistory([]); // Clear history for the new turn
+    setMoveHistory([]);
   }, [isPlaying, boardState.home.white, boardState.home.black, initializeBoard, currentPlayer, getOpponentColor, endMatch]);
 
 
-  // Performs a checker move on the board.
-  // diceToConsume is now an array of numbers, e.g., [4], [2, 4], [3, 3, 3]
   const performMove = useCallback((fromPoint, toPoint, diceToConsume) => {
-    const newBoardState = JSON.parse(JSON.stringify(boardState)); // Deep copy to ensure immutability.
+    const newBoardState = JSON.parse(JSON.stringify(boardState));
 
     let checkerToMove;
     if (fromPoint === 'bar') {
-        // Move from the bar.
         if (newBoardState.bar[currentPlayer] > 0) {
             newBoardState.bar[currentPlayer]--;
             checkerToMove = currentPlayer;
@@ -1245,40 +1178,35 @@ const BackgammonGame = ({ onMatchEnd }) => {
             return;
         }
     } else {
-        // Move from a regular point.
         const sourcePoint = newBoardState.points[fromPoint - 1];
         if (sourcePoint.checkers.length === 0 || sourcePoint.checkers[0] !== currentPlayer) {
             console.error("Invalid move: No checker of current player at source point.");
             setGameMessage("Error: No checker of current player at source point.");
             return;
         }
-        checkerToMove = sourcePoint.checkers.pop(); // Remove checker from source.
+        checkerToMove = sourcePoint.checkers.pop();
     }
 
-    // Determine if a blot was hit BEFORE modifying newBoardState
     let hitOpponentChecker = false;
     let hitCheckerColor = null;
 
-    // Point 0 is white's bear-off, Point 25 is black's bear-off
     const isBearingOff = (toPoint === 0 || toPoint === 25);
 
     if (!isBearingOff && newBoardState.points[toPoint - 1].checkers.length === 1 && newBoardState.points[toPoint - 1].checkers[0] === getOpponentColor(currentPlayer)) {
         hitOpponentChecker = true;
-        hitCheckerColor = getOpponentColor(currentPlayer); // The color of the checker that was hit
+        hitCheckerColor = getOpponentColor(currentPlayer);
     }
 
-    // Handle bearing off (moving to point 0 or 25).
     if (isBearingOff) {
-        if (toPoint === 0) { // White bearing off
+        if (toPoint === 0) {
             newBoardState.home.white++;
-        } else { // Black bearing off (toPoint === 25)
+        } else {
             newBoardState.home.black++;
         }
         setBoardState(newBoardState);
         setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} checker borne off!`);
-        setSelectedPoint(null); // Deselect.
+        setSelectedPoint(null);
 
-        // Consume the used dice.
         let newAvailableDice = [...availableDice];
         diceToConsume.forEach(die => {
             const index = newAvailableDice.indexOf(die);
@@ -1289,54 +1217,48 @@ const BackgammonGame = ({ onMatchEnd }) => {
             }
         });
         setAvailableDice(newAvailableDice);
-        setPossibleMovesInfo([]); // Clear possible moves info
+        setPossibleMovesInfo([]);
 
-        // Record the move in history
         setMoveHistory(prevHistory => [...prevHistory, {
             fromPoint,
             toPoint,
             checkerColor: currentPlayer,
-            hitOpponentChecker: false, // Bearing off never hits opponent
+            hitOpponentChecker: false,
             hitCheckerColor: null,
-            usedDice: diceToConsume // Store the array of dice used
+            usedDice: diceToConsume
         }]);
 
-        // Check for immediate game win after bearing off.
         if (newBoardState.home.white === 15 || newBoardState.home.black === 15) {
             endTurn();
         } else {
-            // Check if any further moves are possible with the remaining dice and updated board state
             const hasMoreMoves = checkIfAnyPossibleMoves(newBoardState, currentPlayer, newAvailableDice);
             if (newAvailableDice.length === 0 || !hasMoreMoves) {
-                setTimeout(endTurn, 1000); // Add a small delay for message visibility
+                setTimeout(endTurn, 1000);
             }
         }
         return;
     }
 
-    // If a blot was hit, move opponent's checker to the bar. This happens before adding current player's checker.
     if (hitOpponentChecker) {
-      newBoardState.points[toPoint - 1].checkers.pop(); // Remove opponent's checker.
-      newBoardState.bar[hitCheckerColor]++; // Send it to the opponent's bar.
+      newBoardState.points[toPoint - 1].checkers.pop();
+      newBoardState.bar[hitCheckerColor]++;
       setGameMessage(`Blot hit! ${hitCheckerColor.charAt(0).toUpperCase() + hitCheckerColor.slice(1)} checker sent to the bar.`);
     }
 
-    newBoardState.points[toPoint - 1].checkers.push(checkerToMove); // Add current player's checker to destination.
+    newBoardState.points[toPoint - 1].checkers.push(checkerToMove);
     setBoardState(newBoardState);
     setSelectedPoint(null);
     setGameMessage("Move made!");
 
-    // Record the move in history
     setMoveHistory(prevHistory => [...prevHistory, {
         fromPoint,
         toPoint,
         checkerColor: currentPlayer,
         hitOpponentChecker,
         hitCheckerColor,
-        usedDice: diceToConsume // Store the array of dice used
+        usedDice: diceToConsume
     }]);
 
-    // Consume the used dice after the move.
     let newAvailableDice = [...availableDice];
     diceToConsume.forEach(die => {
         const index = newAvailableDice.indexOf(die);
@@ -1347,43 +1269,37 @@ const BackgammonGame = ({ onMatchEnd }) => {
             }
         });
         setAvailableDice(newAvailableDice);
-        setPossibleMovesInfo([]); // Clear possible moves info
+        setPossibleMovesInfo([]);
 
-        // If no more dice are available after this move, or no more moves possible, automatically end the turn.
         const hasMoreMoves = checkIfAnyPossibleMoves(newBoardState, currentPlayer, newAvailableDice);
         if (newAvailableDice.length === 0 || !hasMoreMoves) {
-            setTimeout(endTurn, 1000); // Add a small delay for message visibility
+            setTimeout(endTurn, 1000);
         }
 
-    }, [boardState, availableDice, currentPlayer, endTurn, getOpponentColor, checkIfAnyPossibleMoves, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
+    }, [boardState, availableDice, currentPlayer, getOpponentColor, checkIfAnyPossibleMoves, setMoveHistory, endTurn]);
 
-    // Handles rolling the dice. This function is passed to the Dice component as a callback.
-    const rollDiceHandler = useCallback((die1, die2) => { // Now accepts die values as arguments
+    const rollDiceHandler = useCallback((die1, die2) => {
         if (!isPlaying) return;
         const newAvailableDice = die1 === die2 ? [die1, die1, die1, die1] : [die1, die2];
         setAvailableDice(newAvailableDice);
         setGameMessage(`${currentPlayer === 'white' ? (currentUser?.displayName || 'White Player') : 'Black Player'} rolled a ${die1} and a ${die2}. Now make your move.`);
         setSelectedPoint(null);
-        setPossibleMovesInfo([]); // Clear possible moves info.
-        setMoveHistory([]); // Clear move history at the start of a new roll/turn
+        setPossibleMovesInfo([]);
+        setMoveHistory([]);
 
-        // Check if any moves are possible with the new dice and current board state
         const initialPossibleMoves = checkIfAnyPossibleMoves(boardState, currentPlayer, newAvailableDice);
 
         if (boardState.bar[currentPlayer] > 0 && !initialPossibleMoves) {
-            // If player has pieces on the bar AND cannot re-enter, skip turn.
             setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} has checkers on the bar and no valid moves. Turn skipped.`);
-            setTimeout(endTurn, 2000); // Give player time to read message
-            return; // Important: exit here to prevent normal turn flow
+            setTimeout(endTurn, 2000);
+            return;
         } else if (!initialPossibleMoves) {
-            // Normal case: no moves possible, but no checkers on bar
             setGameMessage(`No possible moves for ${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} with these dice. Turn ends.`);
-            setTimeout(endTurn, 1500); // Give player a moment to read message
+            setTimeout(endTurn, 1500);
         }
-    }, [isPlaying, currentPlayer, currentUser, checkIfAnyPossibleMoves, boardState, endTurn, setMoveHistory]); // Removed whitePath, blackPath from dependencies as they're not direct args
+    }, [isPlaying, currentPlayer, currentUser, checkIfAnyPossibleMoves, boardState, endTurn, setMoveHistory]);
 
 
-    // Starts a new backgammon match.
     const startMatch = () => {
         setPlayerScore(0);
         setOpponentScore(0);
@@ -1392,14 +1308,13 @@ const BackgammonGame = ({ onMatchEnd }) => {
         setDice([0,0]);
         setAvailableDice([]);
         setCurrentPlayer('white');
-        initializeBoard(); // Reset board to initial state.
+        initializeBoard();
         setSelectedPoint(null);
-        setPossibleMovesInfo([]); // Clear possible moves info
+        setPossibleMovesInfo([]);
         setMustReenterFromBar(false);
-        setMoveHistory([]); // Clear history at match start
+        setMoveHistory([]);
     };
 
-    // Closes the general info modal.
     const closeModal = () => {
         setShowModal(false);
     };
@@ -1411,74 +1326,59 @@ const BackgammonGame = ({ onMatchEnd }) => {
         }
 
         const lastMove = moveHistory[moveHistory.length - 1];
-        const newMoveHistory = moveHistory.slice(0, -1); // Remove the last move
+        const newMoveHistory = moveHistory.slice(0, -1);
         setMoveHistory(newMoveHistory);
 
         const newBoardState = JSON.parse(JSON.stringify(boardState));
 
-        // Determine if it was a bearing off move
         const isBearingOffMove = (lastMove.toPoint === 0 || lastMove.toPoint === 25);
 
-        // 1. Move checker back
         if (isBearingOffMove) {
-            if (lastMove.toPoint === 0) { // White bearing off
+            if (lastMove.toPoint === 0) {
                 newBoardState.home.white--;
-            } else { // Black bearing off
+            } else {
                 newBoardState.home.black--;
             }
-            // Place checker back on its original 'fromPoint'
             newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor);
         } else {
-            // Regular move: move checker from 'toPoint' back to 'fromPoint'
             if (!newBoardState.points[lastMove.toPoint - 1] || newBoardState.points[lastMove.toPoint - 1].checkers.length === 0 ||
                 newBoardState.points[lastMove.toPoint - 1].checkers[newBoardState.points[lastMove.toPoint - 1].checkers.length - 1] !== lastMove.checkerColor) {
                 console.error("Error during undo: No checker of correct color at toPoint to move back.");
                 setGameMessage("Error undoing move. Please restart game if issues persist.");
                 return;
             }
-            newBoardState.points[lastMove.toPoint - 1].checkers.pop(); // Remove from destination
-            // Handle move from bar
+            newBoardState.points[lastMove.toPoint - 1].checkers.pop();
             if (lastMove.fromPoint === 'bar') {
                 newBoardState.bar[lastMove.checkerColor]++;
             } else {
-                newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor); // Return to original point
+                newBoardState.points[lastMove.fromPoint - 1].checkers.push(lastMove.checkerColor);
             }
         }
 
-        // 2. If a blot was hit, move opponent's checker back from the bar
         if (lastMove.hitOpponentChecker && lastMove.hitCheckerColor) {
             newBoardState.bar[lastMove.hitCheckerColor]--;
-            // For a blot, the opponent's checker was sent to the bar FROM `lastMove.toPoint`
-            if (lastMove.toPoint !== 0 && lastMove.toPoint !== 25) { // Ensure it wasn't a bear-off point itself
-                newBoardState.points[lastMove.toPoint - 1].checkers.push(lastMove.hitCheckerColor); // Put opponent's checker back
+            if (lastMove.toPoint !== 0 && lastMove.toPoint !== 25) {
+                newBoardState.points[lastMove.toPoint - 1].checkers.push(lastMove.hitCheckerColor);
             }
         }
 
         setBoardState(newBoardState);
 
-        // 3. Refund the dice used in the last move
         setAvailableDice(prevDice => {
             let tempDice = [...prevDice];
             lastMove.usedDice.forEach(die => {
-                tempDice.push(die); // Add each die back
+                tempDice.push(die);
             });
-            return tempDice.sort((a, b) => b - a); // Sort for consistent display (descending)
+            return tempDice.sort((a, b) => b - a);
         });
 
-
-        // Clear selection and possible moves after undo
         setSelectedPoint(null);
         setPossibleMovesInfo([]);
         setGameMessage(`Last move undone.`);
 
-        // Re-evaluate if re-entry from bar is needed after undo
-        // Important: recalculate based on the *new* board state after undo
         if (newBoardState.bar[currentPlayer] > 0) {
             setMustReenterFromBar(true);
-            // The available dice for recalculation should include the refunded dice
-            const updatedAvailableDice = [...availableDice, ...lastMove.usedDice]; // This may not be perfectly accurate if availableDice was already modified for other parts of the turn.
-            // For true robustness, a full state snapshot per move is ideal.
-            // For now, this assumes undoing to a point where the only available dice are what's remaining + refunded from this move.
+            const updatedAvailableDice = [...availableDice, ...lastMove.usedDice];
             const availableEntryMoves = calculatePossibleMoves('bar', updatedAvailableDice, currentPlayer, newBoardState);
             setPossibleMovesInfo(availableEntryMoves);
         } else {
@@ -1488,37 +1388,31 @@ const BackgammonGame = ({ onMatchEnd }) => {
     }, [moveHistory, boardState, availableDice, currentPlayer, getOpponentColor, isPointBlocked, setAvailableDice, setSelectedPoint, setPossibleMovesInfo, setGameMessage, setMustReenterFromBar, calculatePossibleMoves]);
 
 
-    // Effect to initialize the board on component mount or `initializeBoard` change.
     useEffect(() => {
         initializeBoard();
     }, [initializeBoard]);
 
-    // Effect to check for match end conditions.
     useEffect(() => {
         if (isPlaying) {
-            // If either player reaches half the match format score (rounded up), the match ends.
             if (playerScore >= Math.ceil(matchFormat / 2)) {
-                endMatch(true); // Current player won the match.
+                endMatch(true);
             } else if (opponentScore >= Math.ceil(matchFormat / 2)) {
-                endMatch(false); // Opponent won the match.
+                endMatch(false);
             }
         }
     }, [playerScore, opponentScore, isPlaying, matchFormat, endMatch]);
 
 
-    // Effect to manage `mustReenterFromBar` state and highlight valid bar entry moves.
     useEffect(() => {
         if (isPlaying && boardState.bar[currentPlayer] > 0) {
             setMustReenterFromBar(true);
             setGameMessage(`${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)} must re-enter checkers from the bar! Click on an available highlighted point to place your checker.`);
             if (availableDice.length > 0) {
-                // Calculate possible entry moves based on current dice and board state
                 const availableEntryMoves = calculatePossibleMoves('bar', availableDice, currentPlayer, boardState);
                 setPossibleMovesInfo(availableEntryMoves);
             }
         } else {
             setMustReenterFromBar(false);
-            // Clear highlights if no bar checkers and no checker is currently selected.
             if(selectedPoint === null && possibleMovesInfo.length > 0) {
                 setPossibleMovesInfo([]);
             }
@@ -1526,43 +1420,36 @@ const BackgammonGame = ({ onMatchEnd }) => {
     }, [boardState.bar, currentPlayer, isPlaying, availableDice, selectedPoint, calculatePossibleMoves, boardState, possibleMovesInfo.length]);
 
 
-    // Effect to update possible moves when selected point, available dice, or player changes.
     useEffect(() => {
         if (selectedPoint !== null && availableDice.length > 0) {
             const moves = calculatePossibleMoves(selectedPoint, availableDice, currentPlayer, boardState);
-            // Only update if the moves array is different to prevent unnecessary renders
             if (JSON.stringify(moves) !== JSON.stringify(possibleMovesInfo)) {
                 setPossibleMovesInfo(moves);
             }
         } else if (selectedPoint === null && possibleMovesInfo.length > 0 && !mustReenterFromBar) {
-            // Clear possible moves when nothing is selected, unless re-entering from bar
             setPossibleMovesInfo([]);
         }
     }, [selectedPoint, availableDice, currentPlayer, boardState, calculatePossibleMoves, possibleMovesInfo, mustReenterFromBar]);
 
 
-    // Handles a click on a board point.
     const handlePointClick = (pointNumber) => {
         if (!isPlaying || availableDice.length === 0) {
             setGameMessage("Please roll the dice and ensure moves are available!");
             return;
         }
 
-        // If the clicked point is already selected, deselect it.
         if (selectedPoint === pointNumber) {
             setSelectedPoint(null);
-            setPossibleMovesInfo([]); // Clear possible moves info
+            setPossibleMovesInfo([]);
             setGameMessage("Checker deselected.");
             return;
         }
 
-        // Handle clicks on bear-off areas as target points
         const isClickOnBearOffArea = (pointNumber === 0 || pointNumber === 25);
         const targetMoveInfo = possibleMovesInfo.find(move => move.targetPoint === pointNumber);
 
         if (mustReenterFromBar) {
-            // If checkers are on the bar, the only allowed action is to re-enter them.
-            if (isClickOnBearOffArea) { // Cannot bear off from bar
+            if (isClickOnBearOffArea) {
                 setGameMessage("You must re-enter checkers from the bar first.");
                 return;
             }
@@ -1574,12 +1461,10 @@ const BackgammonGame = ({ onMatchEnd }) => {
             return;
         }
 
-        // If a checker is already selected, try to move it to the clicked point (including bear-off areas).
         if (selectedPoint !== null && targetMoveInfo) {
-            performMove(selectedPoint, pointNumber, targetMoveInfo.diceUsed); // Pass the exact dice used
+            performMove(selectedPoint, pointNumber, targetMoveInfo.diceUsed);
         } else {
-            // No checker selected, or clicked an invalid target. Try to select a checker.
-            if (isClickOnBearOffArea) { // Cannot select a checker from a bear-off area
+            if (isClickOnBearOffArea) {
                 setGameMessage("You cannot select checkers from the bear-off area.");
                 setSelectedPoint(null);
                 setPossibleMovesInfo([]);
@@ -1589,14 +1474,13 @@ const BackgammonGame = ({ onMatchEnd }) => {
             const pointCheckers = boardState.points[pointNumber - 1].checkers;
             if (pointCheckers.length > 0 && pointCheckers[0] === currentPlayer) {
                 setSelectedPoint(pointNumber);
-                // When a checker is selected, calculate and store its possible moves including the dice used.
                 const calculatedMoves = calculatePossibleMoves(pointNumber, availableDice, currentPlayer, boardState);
                 setPossibleMovesInfo(calculatedMoves);
                 setGameMessage(`Selected checker from point ${pointNumber}. Now choose a destination.`);
             } else {
                 setGameMessage("You don't have checkers on this point or it's not your turn. Please select your own checker.");
-                setSelectedPoint(null); // Ensure no point is selected if invalid click.
-                setPossibleMovesInfo([]); // Clear possible moves info
+                setSelectedPoint(null);
+                setPossibleMovesInfo([]);
             }
         }
     };
@@ -1627,17 +1511,6 @@ const BackgammonGame = ({ onMatchEnd }) => {
                         <option value={13}>Best of 13</option>
                         <option value={15}>Best of 15</option>
                     </select>
-                    {/* Toggle sound button removed as sound functionality is removed */}
-                    {/* <div className="mt-4">
-                        <button
-                            onClick={() => setSoundEnabled(prev => !prev)}
-                            className={`w-full py-2 px-4 rounded-md font-semibold transition-colors ${
-                                soundEnabled ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                            }`}
-                        >
-                            Toggle Dice Sound: {soundEnabled ? 'On' : 'Off'}
-                        </button>
-                    </div> */}
                 </div>
 
                 <div className="p-4 bg-green-50 rounded-lg shadow-inner flex flex-col justify-between col-span-2">
@@ -1656,7 +1529,6 @@ const BackgammonGame = ({ onMatchEnd }) => {
                 </div>
             </div>
 
-            {/* Backgammon Board & Dice Area */}
             <div className="flex flex-col md:flex-row gap-6 items-start">
                 <div className="w-full md:w-3/4">
                     <BackgammonBoard
@@ -1664,12 +1536,11 @@ const BackgammonGame = ({ onMatchEnd }) => {
                         currentPlayer={currentPlayer}
                         onPointClick={handlePointClick}
                         selectedPoint={selectedPoint}
-                        possibleMovePoints={possibleMovesInfo.map(m => m.targetPoint)} // Pass only the points for highlighting
+                        possibleMovePoints={possibleMovesInfo.map(m => m.targetPoint)}
                         currentDiceValues={dice}
                     />
                 </div>
                 <div className="w-full md:w-1/4 flex flex-col gap-4">
-                    {/* Removed soundEnabled prop from Dice component */}
                     <Dice dice={dice} setDice={setDice} rollDice={rollDiceHandler} disabled={!isPlaying || availableDice.length > 0} />
                     {isPlaying && (
                         <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-lg shadow-inner">
@@ -1681,18 +1552,17 @@ const BackgammonGame = ({ onMatchEnd }) => {
                             >
                                 Undo Last Move
                             </button>
-                            {/* Manual win/lose buttons for simulating a *game outcome* within the match, useful for testing match score. */}
                             <button
                                 onClick={() => {
-                                    setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
+                                    setConfirmModalAction(() => () => {
                                         const newBoardState = JSON.parse(JSON.stringify(boardState));
-                                        newBoardState.home.white = 15; // Force White to win.
+                                        newBoardState.home.white = 15;
                                         setBoardState(newBoardState);
-                                        endTurn(); // Trigger win logic and next game/match end.
-                                        setShowConfirmModal(false); // Close the confirmation modal.
+                                        endTurn();
+                                        setShowConfirmModal(false);
                                     });
-                                    setShowConfirmModal(true); // Show the confirmation modal.
-                                    setModalMessage("Are you sure you want to simulate White winning this game?"); // Set confirmation message.
+                                    setShowConfirmModal(true);
+                                    setModalMessage("Are you sure you want to simulate White winning this game?");
                                 }}
                                 className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
                             >
@@ -1700,15 +1570,15 @@ const BackgammonGame = ({ onMatchEnd }) => {
                             </button>
                             <button
                                 onClick={() => {
-                                    setConfirmModalAction(() => () => { // Set the action to be performed on confirmation.
+                                    setConfirmModalAction(() => () => {
                                         const newBoardState = JSON.parse(JSON.stringify(boardState));
-                                        newBoardState.home.black = 15; // Force Black to win.
+                                        newBoardState.home.black = 15;
                                         setBoardState(newBoardState);
-                                        endTurn(); // Trigger win logic and next game/match end.
-                                        setShowConfirmModal(false); // Close the confirmation modal.
+                                        endTurn();
+                                        setShowConfirmModal(false);
                                     });
-                                    setShowConfirmModal(true); // Show the confirmation modal.
-                                    setModalMessage("Are you sure you want to simulate Black winning this game?"); // Set confirmation message.
+                                    setShowConfirmModal(true);
+                                    setModalMessage("Are you sure you want to simulate Black winning this game?");
                                 }}
                                 className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-sm transition-colors"
                             >
@@ -1730,7 +1600,6 @@ const BackgammonGame = ({ onMatchEnd }) => {
                 ) : null}
             </div>
 
-            {/* Modal for match end notifications */}
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white rounded-lg p-8 shadow-2xl text-center max-w-sm w-full border-t-8 border-blue-600">
@@ -1746,12 +1615,11 @@ const BackgammonGame = ({ onMatchEnd }) => {
                 </div>
             )}
 
-            {/* Custom Confirmation Modal */}
             {showConfirmModal && (
                 <ConfirmModal
-                    message={modalMessage} // Reusing modalMessage for confirmation message.
-                    onConfirm={confirmModalAction} // Execute the stored action on confirm.
-                    onCancel={() => setShowConfirmModal(false)} // Just close on cancel.
+                    message={modalMessage}
+                    onConfirm={confirmModalAction}
+                    onCancel={() => setShowConfirmModal(false)}
                 />
             )}
         </div>
@@ -1775,7 +1643,6 @@ const Header = ({ onNavigate }) => {
                         onClick={() => onNavigate('game')}
                         className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-blue-900 font-semibold rounded-lg shadow-md transition-transform transform hover:scale-105 flex items-center gap-2"
                     >
-                        {/* Using text for icons as lucide-react is not available in this environment */}
                         Game
                     </button>
                     <button
@@ -1829,7 +1696,6 @@ const LoginPage = () => {
                     onClick={signInWithGoogle}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 flex items-center justify-center mx-auto"
                 >
-                    {/* Using inline SVG for Google icon as a fallback */}
                     <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M22.675 12.001c0-.78-.068-1.536-.182-2.272H12v4.265h6.398c-.282 1.39-1.048 2.583-2.227 3.376v2.774h3.565c2.08-1.922 3.284-4.743 3.284-8.143z" fill="#4285F4"/>
                         <path d="M12 23c3.228 0 5.922-1.066 7.896-2.883l-3.565-2.774c-.98.667-2.245 1.054-3.561 1.054-2.766 0-5.1-1.868-5.952-4.382H2.42v2.851C4.305 20.258 7.964 23 12 23z" fill="#34A853"/>
@@ -1854,55 +1720,45 @@ const StatsPage = () => {
     const { currentUser, userId, loadingAuth } = useContext(AuthContext);
     const [users, setUsers] = useState([]);
     const [loadingStats, setLoadingStats] = useState(true);
-    const [sortBy, setSortBy] = useState('winLossRatio'); // Criteria for sorting.
-    const [sortOrder, setSortOrder] = useState('desc');   // Sorting order.
-    const [filterType, setFilterType] = useState('all'); // Filter for 'all' or 'mine' stats.
+    const [sortBy, setSortBy] = useState('winLossRatio');
+    const [sortOrder, setSortOrder] = useState('desc');
+    const [filterType, setFilterType] = useState('all');
 
     useEffect(() => {
-        // Only proceed if Firestore is initialized and authentication is loaded.
-        if (!db || loadingAuth) {
+        if (!loadingAuth) {
             if (!db) console.warn("StatsPage: db is not initialized.");
-            if (loadingAuth) console.log("StatsPage: Auth is still loading.");
-            return;
-        }
-
-        setLoadingStats(true);
-        console.log("StatsPage: Attempting to fetch users from Firestore...");
-        // Fetch users in real-time.
-        const unsubscribe = FirestoreService.getUsers((fetchedUsers) => {
-            console.log("StatsPage: Fetched users:", fetchedUsers);
-            // Process fetched users to calculate win/loss ratio and total matches.
-            const processedUsers = fetchedUsers.map(user => {
-                const totalMatches = (user.totalMatchesWon || 0) + (user.totalMatchesLost || 0);
-                return {
-                    ...user,
-                    winLossRatio: totalMatches > 0 ? ((user.totalMatchesWon || 0) / totalMatches) : 0,
-                    totalMatches: totalMatches,
-                };
+            console.log("StatsPage: Attempting to fetch users from Firestore...");
+            const unsubscribe = FirestoreService.getUsers((fetchedUsers) => {
+                console.log("StatsPage: Fetched users:", fetchedUsers);
+                const processedUsers = fetchedUsers.map(user => {
+                    const totalMatches = (user.totalMatchesWon || 0) + (user.totalMatchesLost || 0);
+                    return {
+                        ...user,
+                        winLossRatio: totalMatches > 0 ? ((user.totalMatchesWon || 0) / totalMatches) : 0,
+                        totalMatches: totalMatches,
+                    };
+                });
+                setUsers(processedUsers);
+                setLoadingStats(false);
+                console.log("StatsPage: Users state updated, loadingStats set to false.");
             });
-            setUsers(processedUsers);
-            setLoadingStats(false); // Stats loading complete.
-            console.log("StatsPage: Users state updated, loadingStats set to false.");
-        });
 
-        // Cleanup function: unsubscribe from Firestore listener.
-        return () => {
-            console.log("StatsPage: Cleaning up Firestore listener.");
-            unsubscribe();
-        };
-    }, [db, loadingAuth]); // Re-run effect when db or loadingAuth changes.
+            return () => {
+                console.log("StatsPage: Cleaning up Firestore listener.");
+                unsubscribe();
+            };
+        }
+    }, [loadingAuth]);
 
-    // Filter and sort users based on current criteria.
     const sortedAndFilteredUsers = [...users]
         .filter(user => {
             if (filterType === 'mine' && userId) {
-                return user.id === userId; // Only show current user's stats.
+                return user.id === userId;
             }
-            return true; // Show all users.
+            return true;
         })
         .sort((a, b) => {
             let valA, valB;
-            // Assign values based on sorting criteria.
             if (sortBy === 'winLossRatio') {
                 valA = a.winLossRatio;
                 valB = b.winLossRatio;
@@ -1915,16 +1771,15 @@ const StatsPage = () => {
             } else if (sortBy === 'totalMatches') {
                 valA = a.totalMatches || 0;
                 valB = b.totalMatches || 0;
-            } else { // Default to totalGamesPlayed
+            } else {
                 valA = a.totalGamesPlayed || 0;
                 valB = b.totalGamesPlayed || 0;
             }
 
-            // Apply sorting order.
             if (sortOrder === 'asc') {
                 return valA - valB;
             } else {
-                return valB - valA; // Corrected the sorting logic to use valA and valB consistently
+                return valB - valA;
             }
         });
 
@@ -2036,15 +1891,13 @@ const StatsPage = () => {
     );
 };
 
-// --- Main App Component ---
-// This component handles routing and overall application layout.
-const App = () => {
-    const [currentPage, setCurrentPage] = useState('game'); // State to control which page is displayed.
-    const { currentUser, loadingAuth } = useContext(AuthContext); // Access authentication state from context.
+// --- Main App Content Component (holds routing and game/stats pages) ---
+const MainAppContent = () => {
+    const [currentPage, setCurrentPage] = useState('game');
+    const { currentUser, loadingAuth } = useContext(AuthContext);
 
-    console.log("App component rendering. CurrentPage:", currentPage, "LoadingAuth:", loadingAuth, "CurrentUser:", currentUser?.uid);
+    console.log("MainAppContent rendering. CurrentPage:", currentPage, "LoadingAuth:", loadingAuth, "CurrentUser:", currentUser?.uid);
 
-    // Display a loading indicator while authentication state is being determined.
     if (loadingAuth) {
         return (
             <div className="min-h-screen bg-gray-100 font-inter antialiased flex items-center justify-center">
@@ -2055,9 +1908,8 @@ const App = () => {
 
     return (
         <div className="min-h-screen bg-gray-100 font-inter antialiased">
-            <Header onNavigate={setCurrentPage} /> {/* Header for navigation. */}
+            <Header onNavigate={setCurrentPage} />
             <main className="container mx-auto p-4">
-                {/* Conditional rendering: show LoginPage if not authenticated, otherwise show game or stats. */}
                 {!currentUser || currentUser.isAnonymous ? (
                     <LoginPage />
                 ) : (
@@ -2072,11 +1924,12 @@ const App = () => {
 };
 
 // The top-level component that wraps the entire application with AuthProvider.
-// This is crucial for useContext(AuthContext) to work throughout the app.
-const RootApp = () => (
+const App = () => (
     <AuthProvider>
-        <App />
+        <MainAppContent />
     </AuthProvider>
 );
 
-export default RootApp;
+// Standard default export for React applications.
+// This is the correct way to export the main App component in a React project.
+export default App;
