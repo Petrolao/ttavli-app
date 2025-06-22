@@ -1,10 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
-// ReactDOM import removed as it's not typically imported in component files for modern React builds
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
-// Tone.js imports removed as requested to resolve compilation issues.
-// import * => Tone from 'tone'; // Removed
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
@@ -60,10 +57,9 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Error signing in with Google:", error);
       // Handle specific errors like pop-up closed by user
-      // Replaced alert with console.log as alerts are forbidden
       console.log("Google sign-in cancelled. Please try again.");
     }
-  }, []);
+  }, []); // Dependencies: empty as `auth` is stable.
 
   // Logout function
   const logout = useCallback(async () => {
@@ -77,7 +73,7 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error("Error signing out:", error);
     }
-  }, []);
+  }, []); // Dependencies: empty as `auth` is stable.
 
   useEffect(() => {
     // If Firebase Auth is not initialized, stop loading and return.
@@ -726,6 +722,11 @@ const ConfirmModal = ({ message, onConfirm, onCancel }) => {
     );
 };
 
+// Define whitePath and blackPath outside the component to ensure stable references
+const whitePath = [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13];
+const blackPath = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+
 // --- Main Game Logic Component (BackgammonGame) ---
 const BackgammonGame = ({ onMatchEnd }) => {
   const { currentUser, userId } = useContext(AuthContext);
@@ -746,11 +747,6 @@ const BackgammonGame = ({ onMatchEnd }) => {
   const [possibleMovesInfo, setPossibleMovesInfo] = useState([]);
   const [mustReenterFromBar, setMustReenterFromBar] = useState(false);
   const [moveHistory, setMoveHistory] = useState([]);
-
-  // Define the custom paths for movement as per user's description.
-  // Moved these constants inside the component to ensure referential stability for useCallback.
-  const whitePath = [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13];
-  const blackPath = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 
   // Board State: Represents the checkers on each point, bar, and home areas.
@@ -780,7 +776,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
   }, []);
 
   // Helper to determine the opponent's color.
-  const getOpponentColor = useCallback((playerColor) => (playerColor === 'white' ? 'black' : 'opponent'), []);
+  const getOpponentColor = useCallback((playerColor) => (playerColor === 'white' ? 'black' : 'opponent'), []); // No dependencies, stable reference
 
   // Determines if a point is blocked by the opponent (2 or more opponent checkers).
   const isPointBlocked = useCallback((pointIndex, playerColor, currentBoardState) => {
@@ -788,7 +784,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
     if (!point || point.checkers.length === 0) return false;
     const opponentColor = getOpponentColor(playerColor);
     return point.checkers[0] === opponentColor && point.checkers.length >= 2;
-  }, [getOpponentColor]);
+  }, [getOpponentColor]); // Depends on getOpponentColor, which is stable.
 
   // Checks if all of a player's checkers are in their home board.
   const areAllCheckersInHomeBoard = useCallback((playerColor, currentBoardState) => {
@@ -821,7 +817,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
   // Helper function to check if any moves are possible with given state and dice
   const checkIfAnyPossibleMoves = useCallback((currentBoardState, player, currentDice) => {
     const isWhite = player === 'white';
-    const playerPath = isWhite ? whitePath : blackPath;
+    const playerPath = isWhite ? whitePath : blackPath; // Now stable references
 
     if (currentBoardState.bar[player] > 0) {
         for (const die of currentDice) {
@@ -906,14 +902,14 @@ const BackgammonGame = ({ onMatchEnd }) => {
         }
     }
     return false;
-  }, [areAllCheckersInHomeBoard, isPointBlocked, whitePath, blackPath]);
+  }, [areAllCheckersInHomeBoard, isPointBlocked]); // Removed whitePath, blackPath as they are global constants
 
   // Calculates all possible moves for a checker from a given `fromPoint` with `currentDice`.
   // Returns an array of objects: { targetPoint: number, diceUsed: number[] }
   const calculatePossibleMoves = useCallback((fromPoint, currentDice, playerColor, board) => {
       const moves = [];
       const isWhite = playerColor === 'white';
-      const playerPath = isWhite ? whitePath : blackPath;
+      const playerPath = isWhite ? whitePath : blackPath; // Now stable references
 
       const checkSingleStepLogic = (startPoint, startPathIndex, die, tempBoard, playerColor, isInitialFromBar = false) => {
           let targetGamePoint = null;
@@ -1078,7 +1074,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
           }
       });
       return Array.from(uniqueMovesMap.values());
-  }, [mustReenterFromBar, areAllCheckersInHomeBoard, isPointBlocked, whitePath, blackPath, getOpponentColor]);
+  }, [mustReenterFromBar, areAllCheckersInHomeBoard, getOpponentColor, isPointBlocked]); // Removed whitePath, blackPath as they are global constants
 
   const endMatch = useCallback((playerWon) => {
     setIsPlaying(false);
@@ -1161,8 +1157,7 @@ const BackgammonGame = ({ onMatchEnd }) => {
     setMustReenterFromBar(false);
     setGameMessage(`Turn ended. It's now ${getOpponentColor(currentPlayer).charAt(0).toUpperCase() + getOpponentColor(currentPlayer).slice(1)}'s turn. Roll the dice!`);
     setMoveHistory([]);
-  }, [isPlaying, boardState.home.white, boardState.home.black, initializeBoard, currentPlayer, getOpponentColor, endMatch]);
-
+  }, [isPlaying, boardState.home.white, boardState.home.black, initializeBoard, currentPlayer, getOpponentColor]); // Removed `endMatch` as a dependency
 
   const performMove = useCallback((fromPoint, toPoint, diceToConsume) => {
     const newBoardState = JSON.parse(JSON.stringify(boardState));
