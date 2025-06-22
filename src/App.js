@@ -3,8 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signInAnonymously, signOut, signInWithCustomToken } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, onSnapshot } from 'firebase/firestore';
 // Import Tone.js for sound effects.
-// Corrected import: explicitly import NoiseSynth, PluckSynth, and other Tone.js modules.
-import { NoiseSynth, PluckSynth, context as ToneContext, start as ToneStart } from 'tone';
+// Corrected import: import the entire Tone object and access components from it.
+import * as Tone from 'tone';
 
 // Tailwind CSS is assumed to be available in the environment via a global CDN.
 
@@ -231,7 +231,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   useEffect(() => {
     // Initialize main rolling sound synth
     if (!rollEventSynthRef.current) {
-        rollEventSynthRef.current = new NoiseSynth({ // Use NoiseSynth directly
+        rollEventSynthRef.current = new Tone.NoiseSynth({ // Use Tone.NoiseSynth
             noise: {
                 type: 'brown' // Brown noise for a lower frequency, rumbling sound
             },
@@ -248,7 +248,7 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
 
     // Initialize impact sound synth (short, sharp click/thud)
     if (!impactSynthRef.current) {
-        impactSynthRef.current = new PluckSynth({ // Use PluckSynth directly
+        impactSynthRef.current = new Tone.PluckSynth({ // Use Tone.PluckSynth
             attackNoise: 1, // High attack noise for a percussive feel
             dampening: 2000,
             resonance: 0.7
@@ -273,9 +273,9 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
   const playDiceRollSound = async (duration = 0.8) => { // Increased duration for more rolling feel
     if (!soundEnabled) return;
 
-    if (ToneContext.state !== 'running') { // Use ToneContext
+    if (Tone.context.state !== 'running') { // Use Tone.context
       try {
-        await ToneStart(); // Use ToneStart
+        await Tone.start(); // Use Tone.start
         console.log("Tone.js context started successfully for dice sound.");
       } catch (error) {
         console.error("Error starting Tone.js context for dice sound:", error);
@@ -283,8 +283,8 @@ const Dice = ({ dice, setDice, rollDice, disabled, soundEnabled }) => {
       }
     }
 
-    // Always use ToneContext.currentTime for scheduling to prevent negative time errors.
-    const start = ToneContext.currentTime; // Use ToneContext
+    // Always use Tone.context.currentTime for scheduling to prevent negative time errors.
+    const start = Tone.context.currentTime; // Use Tone.context
     const end = start + duration;
 
     // Main rolling sound: bursts of noise
